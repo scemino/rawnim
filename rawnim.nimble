@@ -2,7 +2,7 @@
 
 version       = "0.1.0"
 author        = "scemino"
-description   = "This is a re-implementation of the engine used in the game Another World."
+description   = "Another World/Out of This World engine reimplementation written in pure nim."
 license       = "MIT"
 srcDir        = "src"
 bin           = @["rawnim"]
