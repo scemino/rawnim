@@ -2,7 +2,7 @@ import ptrmath
 
 type ScriptPtr* = object
     pc*: ptr byte
-    byteSwap: bool 
+    byteSwap*: bool 
 
 proc READ_LE_UINT16(p: ptr byte): uint16 =
     (p[1] shl 8) or p[0]

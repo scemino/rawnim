@@ -6,6 +6,7 @@ import video
 
 const
     EntriesCount = 146
+    MemBlockSize = 1 * 1024 * 1024
     memListParts = [
         [ 0x14, 0x15, 0x16, 0x00 ], # 16000 - protection screens
         [ 0x17, 0x18, 0x19, 0x00 ], # 16001 - introduction
@@ -48,6 +49,15 @@ type
         RT_BYTECODE = 4,
         RT_SHAPE = 5,
         RT_BANK = 6, # common part shapes (bank2.mat)
+
+proc allocMemBlock*(self: var Resource) =
+    var buffer = newSeq[byte](MEM_BLOCK_SIZE)
+    self.memPtrStart = addr buffer[0]
+    self.scriptCurPtr = self.memPtrStart
+    self.scriptBakPtr = self.memPtrStart
+    self.vidCurPtr = self.memPtrStart + MEM_BLOCK_SIZE - 0x800 * 16
+    self.vidBakPtr = self.vidCurPtr
+    self.useSegVideo2 = false
 
 proc getBankName(bankNum: byte): string =
     result = &"bank{bankNum:02X}"
@@ -147,7 +157,8 @@ proc load(self: var Resource) =
             # TODO: warning "Resource::load() ec=0xF00 (me.bankNum == 0)"
             me.status = STATUS_NULL
         else:
-            #TODO: debug (DBG_BANK, "Resource::load() bufPos=0x%X size=%d type=%d pos=0x%X bankNum=%d", memPtr - self.memPtrStart, me.packedSize, me.entryType, me.bankPos, me.bankNum)
+            var bufPos = (cast[int](memPtr) - cast[int](self.memPtrStart)).int
+            debug(DBG_BANK, &"Resource::load() bufPos=0x{bufPos:0X} size={me.packedSize} type={me.entryType} pos=0x{me.bankPos:X} bankNum={me.bankNum}")
             if self.readBank(me[],memPtr):
                 if me.entryType == RT_BITMAP.byte:
                     self.vid.copyBitmapPtr(self.vidCurPtr, me.unpackedSize)

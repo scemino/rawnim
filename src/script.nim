@@ -1,4 +1,4 @@
-import std/[algorithm, logging, times, strformat]
+import std/[algorithm, logging, strformat]
 import parts
 import resource
 import grid
@@ -15,7 +15,7 @@ type
         svRandomSeed = 0x3C, svScreenNum = 0x67, svLastKeyChar = 0xDA, svHeroPosUpDown = 0xE5, svMusicSync =0xF4, svScrollY = 0xF9,
         svHeroAction = 0xFA, svHeroPosJumpDown = 0xFB, svHeroPosLeftRight  = 0xFC, svHeroPosMask = 0xFD, svHeroActionPosMask = 0xFE, svPauseSlices = 0xFF
     Script* = object
-        res: Resource
+        res*: ref Resource
         vid: Video
         sys: System
         scriptVars: array[256, int16]
@@ -28,6 +28,23 @@ type
         fastMode: bool
         screenNum: int
         startTime, timeStamp: uint32
+
+proc init*(self: var Script) =
+    self.scriptVars.fill(0)
+    self.fastMode = false
+    #TODO: self.ply.syncVar = &self.scriptVars[svMusicSync.int]
+    self.scriptPtr.byteSwap = false
+    
+    self.scriptVars[svRandomSeed.int] = 0 #time(0)
+#ifdef BYPASS_PROTECTION
+    # these 3 variables are set by the game code
+    self.scriptVars[0xBC] = 0x10
+    self.scriptVars[0xC6] = 0x80
+    self.scriptVars[0xF2] = 4000
+    # these 2 variables are set by the engine executable
+    self.scriptVars[0xDC] = 33
+#endif
+    self.scriptVars[0xE4] = 20
 
 proc fixUpPalette_changeScreen(self: var Script, part, screen: int) =
     var pal = -1
@@ -188,7 +205,6 @@ proc op_condJmp(self: var Script) =
 
 proc op_setPalette(self: var Script) =
     let i = self.scriptPtr.fetchWord()
-    info("")
     debug(DBG_SCRIPT, &"Script::op_changePalette({i})")
     let num = i shr 8
     if self.vid.graphics.fixUpPalette == FIXUP_PALETTE_REDRAW:
@@ -316,9 +332,9 @@ proc op_updateResources(self: var Script) =
     if num == 0:
         #self.ply.stop()
         #self.mix.stopAll()
-        self.res.invalidateRes()
+        self.res[].invalidateRes()
     else:
-        self.res.update(num)
+        self.res[].update(num)
 
 proc op_playMusic(self: var Script) =
     var resNum = self.scriptPtr.fetchWord()
@@ -345,11 +361,7 @@ const
         op_playSound, op_updateResources, op_playMusic
     ]
 
-func init(self: var Script) =
-    self.scriptVars[svRandomSeed.int] = 0 # TODO: time()
-    self.scriptVars[0xE4] = 20
-
-proc restartAt(self: var Script, part, pos: int = -1) =
+proc restartAt*(self: var Script, part, pos: int = -1) =
     if part == kPartCopyProtection.int:
         # VAR(0x54) indicates if the "Out of this World" title screen should be presented
         #
@@ -363,7 +375,7 @@ proc restartAt(self: var Script, part, pos: int = -1) =
 
         # Use "Another World" title screen if language is set to French
         self.scriptVars[0x54] = 0x1  #: 0x81
-    self.res.setupPart(part)
+    self.res[].setupPart(part)
     self.scriptTasks.fill(0xFF.uint16)
     self.scriptStates.fill(0)
     self.scriptTasks[0,0] = 0.uint16
@@ -376,7 +388,7 @@ proc restartAt(self: var Script, part, pos: int = -1) =
     #     if self.res.demo3Joy.start():
     #         self.scriptVars.fill(0)
 
-proc setupTasks(self: var Script) =
+proc setupTasks*(self: var Script) =
     if self.res.nextPart != 0:
         self.restartAt(self.res.nextPart.int)
         self.res.nextPart = 0
@@ -386,6 +398,9 @@ proc setupTasks(self: var Script) =
         if n != 0xFFFF:
             self.scriptTasks[0,i] = if n == 0xFFFE: 0xFFFF else: n.int
             self.scriptTasks[1,i] = 0xFFFF
+
+proc updateInput*(self: var Script) =
+    discard
 
 proc executeTask(self: var Script) =
     while not self.scriptPaused:
@@ -398,7 +413,7 @@ proc executeTask(self: var Script) =
             if h > 0:
                 pt.y = 199
                 pt.x += h
-            debug(DBG_VIDEO, "vid_opcd_0x80 : opcode=0x%X off=0x%X x=%d y=%d", opcode, off, pt.x, pt.y)
+            debug(DBG_VIDEO, &"vid_opcd_0x80 : opcode=0x{opcode:X} off=0x{off} x={pt.x} y={pt.y}")
             self.vid.setDataBuffer(self.res.segVideo1, off)
             self.vid.drawShape(0xFF, 64, addr pt)
         elif (opcode and 0x40) != 0:
@@ -440,7 +455,7 @@ proc executeTask(self: var Script) =
             else:
                 opTable[opcode](self)
 
-proc runTasks(self: var Script) =
+proc runTasks*(self: var Script) =
     for i in 0..<0x40:
         if self.sys.pi.quit:
             return

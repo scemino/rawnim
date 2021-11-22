@@ -24,6 +24,9 @@ proc decode_amiga(source: ptr byte, dest: ptr byte) =
                 dst += 1
             src += 1
 
+proc init*(self: Video) =
+    discard
+
 proc copyBitmapPtr*(self: Video, src: ptr byte, size: uint32 = 0) =
     discard
 
