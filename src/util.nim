@@ -30,7 +30,7 @@ template debug*(cm: ChannelMask, args: varargs[string, `$`]) =
     if g_debugMask.contains(cm):
         debug(args)
 
-proc fill*(data: var ptr byte, value: byte, size: Natural) =
+proc fill*(data: ptr byte, value: byte, size: Natural) =
   for i in 0..size:
     data[i] = value
 

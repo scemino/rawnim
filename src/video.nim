@@ -1,4 +1,4 @@
-import std/strformat
+import std/[logging, strformat]
 import ptrmath
 import graphics
 import system
@@ -57,7 +57,7 @@ proc getPagePtr(self: Video, page: byte): byte =
             p = self.buffers[1]
         else:
             p = 0 # XXX check
-            #warning("Video::getPagePtr() p != [0,1,2,3,0xFF,0xFE] == 0x%X", page)
+            warn &"Video::getPagePtr() p != [0,1,2,3,0xFF,0xFE] == 0x{page:X}"
     result = p
 
 proc setWorkPagePtr*(self: Video, page: byte) =
@@ -83,8 +83,8 @@ proc setDataBuffer*(self: Video, dataBuf: ptr byte, offset: uint16) =
 proc fillPolygon(self: Video, color, zoom: uint16, pt: Point) =
     var p = self.pData.pc
 
-    var bbw = p[] * zoom div 64; p+=1
-    var bbh = p[] * zoom div 64; p+=1
+    var bbw = p[] * zoom div 64; p += 1
+    var bbh = p[] * zoom div 64; p += 1
     
     var x1 = pt.x - bbw.int16 div 2
     var x2 = pt.x + bbw.int16 div 2
@@ -97,13 +97,12 @@ proc fillPolygon(self: Video, color, zoom: uint16, pt: Point) =
     var qs: QuadStrip
     qs.numVertices = p[]; p += 1
     if (qs.numVertices and 1) != 0:
-        #warning("Unexpected number of vertices %d", qs.numVertices)
+        warn &"Unexpected number of vertices {qs.numVertices}"
         return
 
     for i in 0..<qs.numVertices.int:
-        var v = qs.vertices[i]
-        v.x = x1 + (p[] * zoom div 64).int16; p += 1
-        v.y = y1 + (p[] * zoom div 64).int16; p += 1
+        qs.vertices[i].x = x1 + (p[] * zoom div 64).int16; p += 1
+        qs.vertices[i].y = y1 + (p[] * zoom div 64).int16; p += 1
 
     if qs.numVertices == 4 and bbw == 0 and bbh <= 1:
         self.graphics.drawPoint(self.buffers[0].int, color.byte, pt)
@@ -116,19 +115,18 @@ proc drawShape*(self: Video, color: byte, zoom: uint16, pt: Point) =
     var i = self.pData.fetchByte()
     var c = color
     if i >= 0xC0:
-        if (color and 0x80) != 0:
+        if (c and 0x80) != 0:
             c = (i and 0x3F).byte
         self.fillPolygon(c, zoom, pt)
     else:
         i = i and 0x3F
         if i == 1:
-            discard
-            #warning("Video::drawShape() ec=0x%X (i != 2)", 0xF80)
+            warn "Video::drawShape() ec=0xF80 (i != 2)"
         elif i == 2:
+            discard
             self.drawShapeParts(zoom, pt)
         else:
-            discard
-            #warning("Video::drawShape() ec=0x%X (i != 2)", 0xFBB)
+            warn "Video::drawShape() ec=0xFBB (i != 2)"
 
 proc drawShapeParts(self: Video, zoom: uint16, pgc: Point) =
     var pt: Point

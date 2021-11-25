@@ -1,3 +1,4 @@
+import std/[logging, strformat]
 import color
 import system
 import ptrmath
@@ -37,7 +38,7 @@ proc getPageSize(self: Graphics): int {.inline.} =
 proc getPagePtr(self: Graphics, page: byte): ptr byte =
     self.pagePtrs[page.int][0].addr
 
-proc setWorkPagePtr(self: Graphics, page: byte) =
+proc setWorkPagePtr*(self: Graphics, page: byte) =
     self.drawPagePtr = self.getPagePtr(page)
 
 proc setSize(self: Graphics, w, h: int) =
@@ -94,7 +95,7 @@ proc drawBuffer*(self: Graphics, num: int, sys: System) =
         var src = self.getPagePtr(num.byte)
         for i in 0..<(self.w * self.h):
             self.colorBuffer[i] = self.pal[src[i]].rgb555()
-        dumpPalette555(addr self.colorBuffer[0], self.w, self.pal);
+        #dumpPalette555(addr self.colorBuffer[0], self.w, self.pal);
         sys.setScreenPixels555(self.colorBuffer[0].addr, self.w, self.h)
     elif self.byteDepth == 2:
         var src = cast[ptr uint16](self.getPagePtr(num.byte))
@@ -113,15 +114,15 @@ proc drawBitmap*(self: Graphics, buffer: int, data: ptr byte, w, h: int, fmt: Gr
             return
     else: 
         discard
-    #warning &"GraphicsSoft::drawBitmap() unhandled fmt {fmt} w {w} h {h}"
+    warn &"GraphicsSoft::drawBitmap() unhandled fmt {fmt} w {w} h {h}"
 
 proc clearBuffer*(self: Graphics, num: int, color: byte) =
     var p = self.getPagePtr(num.byte)
     p.fill(color, self.getPageSize())
 
 proc drawPoint*(self: Graphics, xx, yy: int16, color: byte) =
-    var x = self.xScale(xx.int)
-    var y = self.yScale(yy.int)
+    let x = self.xScale(xx.int)
+    let y = self.yScale(yy.int)
     let offset = (y * self.w + x) * self.byteDepth
     case color:
     of COL_ALPHA:
@@ -153,21 +154,21 @@ proc drawLineT(self: Graphics, x1, x2, y: int16, color: byte) =
         self.drawPagePtr[offset + i] = self.drawPagePtr[offset + i] or 8
 
 proc drawLineN(self: Graphics, x1, x2, y: int16, color: byte) = 
-    var xmax = max(x1, x2)
-    var xmin = min(x1, x2)
-    var w = xmax - xmin + 1
+    let xmax = max(x1, x2)
+    let xmin = min(x1, x2)
+    let w = xmax - xmin + 1
     let offset = (y * self.w + xmin) * self.byteDepth
     var p = self.drawPagePtr + offset
     p.fill(color, w)
 
 func calcStep(p1, p2: Point, dy: var uint16): uint32 =
     dy = (p2.y - p1.y).uint16
-    var delta = if dy <= 1: 1.uint16 else: dy.uint16
-    (p2.x - p1.x).uint32 * ((0x4000 div delta) shl 2).uint32
+    var delta = if dy <= 1: 1.uint16 else: dy
+    ((p2.x - p1.x).uint32 * cast[uint32](0x4000 div delta)) shl 2
 
 func decrement(v: var uint16): bool =
-    dec v
     result = v != 0
+    dec v
 
 proc drawPolygon*(self: Graphics, color: byte, quadStrip: QuadStrip) =
     var qs = quadStrip
@@ -218,8 +219,8 @@ proc drawPolygon*(self: Graphics, color: byte, quadStrip: QuadStrip) =
         else:
             while decrement(h):
                 if hliney >= 0:
-                    x1 = (cpt1 shr 16).int16
-                    x2 = (cpt2 shr 16).int16
+                    x1 = cast[int16](cpt1 shr 16)
+                    x2 = cast[int16](cpt2 shr 16)
                     if x1 < self.w and x2 >= 0:
                         if x1 < 0: x1 = 0
                         if x2 >= self.w: x2 = self.w.int16 - 1.int16

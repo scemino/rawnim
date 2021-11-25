@@ -153,11 +153,11 @@ proc load(self: Resource) =
         else:
             memPtr = self.scriptCurPtr
             if me.unpackedSize > (cast[uint32](self.vidBakPtr) - cast[uint32](self.scriptCurPtr)).uint32:
-                # TODO: warning "Resource::load() not enough memory"
+                warn "Resource::load() not enough memory"
                 me.status = STATUS_NULL
                 continue
         if me.bankNum == 0:
-            # TODO: warning "Resource::load() ec=0xF00 (me.bankNum == 0)"
+            warn "Resource::load() ec=0xF00 (me.bankNum == 0)"
             me.status = STATUS_NULL
         else:
             let bufPos = cast[int](memPtr) - cast[int](self.memPtrStart)
@@ -207,7 +207,6 @@ proc setupPart*(self: Resource, ptrId: int) =
         self.segVideo1 = self.memList[ivd1].bufPtr
         if ivd2 != 0:
             self.segVideo2 = self.memList[ivd2].bufPtr
-            echo &"ivd2={ivd2}"
         self.currentPart = ptrId.uint16
     self.scriptBakPtr = self.scriptCurPtr
 

@@ -77,7 +77,7 @@ proc op_movConst(self: var Script) =
     var i = self.scriptPtr.fetchByte()
     var n = self.scriptPtr.fetchWord()
     debug(DBG_SCRIPT, &"Script::op_movConst(0x{i:02X}, {n})")
-    self.scriptVars[i] = n.int16
+    self.scriptVars[i] = cast[int16](n)
 
 proc op_mov(self: var Script) =
     var i = self.scriptPtr.fetchByte()
@@ -93,7 +93,7 @@ proc op_add(self: var Script) =
 
 proc op_addConst(self: var Script) =
     if self.res.currentPart == 16006 and self.scriptPtr.pc == self.res.segCode + 0x6D48:
-        #warning("Script::op_addConst() workaround for infinite looping gun sound")
+        warn "Script::op_addConst() workaround for infinite looping gun sound"
         # The script 0x27 slot 0x17 doesn't stop the gun sound from looping.
         # This is a bug in the original game code, confirmed by Eric Chahi and
         # addressed with the anniversary editions.
@@ -182,7 +182,7 @@ proc op_condJmp(self: var Script) =
                 # counters
                 self.scriptVars[0x32] = 6
                 self.scriptVars[0x64] = 20
-                #warning("Script::op_condJmp() bypassing protection")
+                warn "Script::op_condJmp() bypassing protection"
                 expression = true
     of 1:
         expression = (b != a)
@@ -195,8 +195,7 @@ proc op_condJmp(self: var Script) =
     of 5:
         expression = (b <= a)
     else:
-        #warning("Script::op_condJmp() invalid condition %d", (op & 7))
-        discard
+        warn &"Script::op_condJmp() invalid condition {op and 7}"
     if expression:
         self.op_jmp()
         if variable == svScreenNum.byte and self.screenNum != self.scriptVars[svScreenNum.int]:
@@ -221,7 +220,7 @@ proc op_changeTasksState(self: var Script) =
     var start = self.scriptPtr.fetchByte()
     var stop = self.scriptPtr.fetchByte()
     if stop < start:
-        #warning("Script::op_changeTasksState() ec=0x%X (stop < start)", 0x880)
+        warn "Script::op_changeTasksState() ec=0x880 (stop < start)"
         return
     var state = self.scriptPtr.fetchByte()
 
@@ -448,7 +447,6 @@ proc executeTask(self: var Script) =
                 else:
                     zoom = self.scriptPtr.fetchByte().int
             debug(DBG_VIDEO, &"vid_opcd_0x40 : off=0x{off:X} x={pt.x} y={pt.y}")
-            echo "useSegVideo2=", cast[int](self.res.segVideo2)
             self.vid.setDataBuffer(if self.res.useSegVideo2: self.res.segVideo2 else: self.res.segVideo1, off)
             self.vid.drawShape(0xFF, zoom.uint16, pt)
         else:
