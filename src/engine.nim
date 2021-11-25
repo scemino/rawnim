@@ -2,14 +2,15 @@ import resource
 import script
 import video
 import graphics
-from std/sugar import dup 
+import system
 
 type
     Engine* = object
         graphics: Graphics
-        script*: Script
-        res*: ref Resource
+        script: Script
+        res: Resource
         vid: Video
+        sys: System
         partNum: int
 
 const restartPos: array[36 * 2, int] = [
@@ -25,15 +26,24 @@ const restartPos: array[36 * 2, int] = [
 
 proc newEngine*(partNum: int) : Engine =
     var res = new(Resource)
-    result = Engine(partNum: partNum, res: res)
-    result.script = Script(res: res)
+    var video = new(Video)
+    result = Engine(vid: video, partNum: partNum, res: res, script: newScript(res, video))
+
+proc setSystem*(self: var Engine, sys: System, graphics: Graphics) =
+    self.sys = sys
+    self.script.sys = sys
+    self.graphics = graphics
 
 proc setup*(self: var Engine) =
+    const 
+        w = 320
+        h = 200
     self.vid.graphics = self.graphics
     self.vid.init()
-    self.res[].allocMemBlock()
-    self.res[].readEntries()
+    self.res.allocMemBlock()
+    self.res.readEntries()
     #self.res.dumpEntries()
+    self.graphics.init(w, h)
     self.script.init()
     let num = self.partNum
     if num < 36:

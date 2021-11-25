@@ -1,4 +1,5 @@
 import std/[endians, streams, logging]
+import ptrmath
 
 type 
     ChannelMask* = enum
@@ -28,6 +29,10 @@ proc readUint32BE*(s: Stream): uint32 =
 template debug*(cm: ChannelMask, args: varargs[string, `$`]) =
     if g_debugMask.contains(cm):
         debug(args)
+
+proc fill*(data: var ptr byte, value: byte, size: Natural) =
+  for i in 0..size:
+    data[i] = value
 
 when isMainModule:
     echo system.cpuEndian

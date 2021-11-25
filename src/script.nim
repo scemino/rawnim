@@ -5,19 +5,19 @@ import grid
 import system
 import scriptptr
 import ptrmath
-import point
 import video
 import util
 import graphics
+import point
 
 type
     ScriptVars = enum
         svRandomSeed = 0x3C, svScreenNum = 0x67, svLastKeyChar = 0xDA, svHeroPosUpDown = 0xE5, svMusicSync =0xF4, svScrollY = 0xF9,
         svHeroAction = 0xFA, svHeroPosJumpDown = 0xFB, svHeroPosLeftRight  = 0xFC, svHeroPosMask = 0xFD, svHeroActionPosMask = 0xFE, svPauseSlices = 0xFF
     Script* = object
-        res*: ref Resource
+        res: Resource
         vid: Video
-        sys: System
+        sys*: System
         scriptVars: array[256, int16]
         scriptStackCalls: array[64, uint16]
         scriptTasks: Grid[2, 64, uint16]
@@ -28,6 +28,9 @@ type
         fastMode: bool
         screenNum: int
         startTime, timeStamp: uint32
+
+proc newScript*(res: Resource, vid: Video): Script =
+    result = Script(res: res, vid: vid)
 
 proc init*(self: var Script) =
     self.scriptVars.fill(0)
@@ -59,7 +62,7 @@ proc fixUpPalette_changeScreen(self: var Script, part, screen: int) =
         discard
     if pal != -1:
         debug(DBG_SCRIPT, &"Setting palette {pal} for part {part} screen {screen}")
-        self.vid.changePal(pal)
+        self.vid.changePal(self.res.segVideoPal, pal.byte)
 
 proc inp_handleSpecialKeys(self: var Script) =
     discard
@@ -102,11 +105,10 @@ proc op_addConst(self: var Script) =
         #  6D47: VAR(0x06) -= 50
         #
         self.snd_playSound(0x5B, 1, 64, 1)
-        discard
     var i = self.scriptPtr.fetchByte()
-    var n = self.scriptPtr.fetchWord()
+    var n = cast[int16](self.scriptPtr.fetchWord())
     debug(DBG_SCRIPT, &"Script::op_addConst(0x{i:02X}, {n})")
-    self.scriptVars[i] += n.int16
+    self.scriptVars[i] += n
 
 proc op_call(self: var Script) =
     let off = self.scriptPtr.fetchWord()
@@ -136,7 +138,7 @@ proc op_jmp(self: var Script) =
 proc op_installTask(self: var Script) =
     let i = self.scriptPtr.fetchByte().int
     let n = self.scriptPtr.fetchWord()
-    debug(DBG_SCRIPT, &"Script::op_installTask(0x{i:02X}, 0x{n:02X})")
+    debug(DBG_SCRIPT, &"Script::op_installTask(0x{i:X}, 0x{n:04X})")
     assert(i < 0x40)
     self.scriptTasks[1,i] = n
 
@@ -273,7 +275,7 @@ proc op_updateDisplay(self: var Script) =
     self.scriptVars[0xF7] = 0
 
     self.vid.displayHead = not ((self.res.currentPart == 16004 and self.screenNum == 37) or (self.res.currentPart == 16006 and self.screenNum == 202))
-    self.vid.updateDisplay(page, self.sys)
+    self.vid.updateDisplay(self.res.segVideoPal, page, self.sys)
 
 proc op_removeTask(self: var Script) =
     debug(DBG_SCRIPT, "Script::op_removeTask()")
@@ -332,9 +334,9 @@ proc op_updateResources(self: var Script) =
     if num == 0:
         #self.ply.stop()
         #self.mix.stopAll()
-        self.res[].invalidateRes()
+        self.res.invalidateRes()
     else:
-        self.res[].update(num)
+        self.res.update(num)
 
 proc op_playMusic(self: var Script) =
     var resNum = self.scriptPtr.fetchWord()
@@ -375,8 +377,8 @@ proc restartAt*(self: var Script, part, pos: int = -1) =
 
         # Use "Another World" title screen if language is set to French
         self.scriptVars[0x54] = 0x1  #: 0x81
-    self.res[].setupPart(part)
-    self.scriptTasks.fill(0xFF.uint16)
+    self.res.setupPart(part)
+    self.scriptTasks.fill(0xFFFF.uint16)
     self.scriptStates.fill(0)
     self.scriptTasks[0,0] = 0.uint16
     self.screenNum = -1
@@ -400,26 +402,26 @@ proc setupTasks*(self: var Script) =
             self.scriptTasks[1,i] = 0xFFFF
 
 proc updateInput*(self: var Script) =
-    discard
+    self.sys.processEvents()
 
 proc executeTask(self: var Script) =
     while not self.scriptPaused:
         var opcode = self.scriptPtr.fetchByte()
         if (opcode and 0x80) != 0:
-            let off = (((opcode shl 8) or self.scriptPtr.fetchByte()) shl 1).uint16
+            let off = ((opcode.uint16 shl 8) or self.scriptPtr.fetchByte()) shl 1
             self.res.useSegVideo2 = false
             var pt = newPoint(self.scriptPtr.fetchByte().int16, self.scriptPtr.fetchByte().int16)
             var h = pt.y - 199.int16
             if h > 0:
                 pt.y = 199
                 pt.x += h
-            debug(DBG_VIDEO, &"vid_opcd_0x80 : opcode=0x{opcode:X} off=0x{off} x={pt.x} y={pt.y}")
+            debug(DBG_VIDEO, &"vid_opcd_0x80 : opcode=0x{opcode:X} off=0x{off:X} x={pt.x} y={pt.y}")
             self.vid.setDataBuffer(self.res.segVideo1, off)
-            self.vid.drawShape(0xFF, 64, addr pt)
+            self.vid.drawShape(0xFF, 64, pt)
         elif (opcode and 0x40) != 0:
             var pt = newPoint()
             let offsetHi = self.scriptPtr.fetchByte()
-            let off = ((offsetHi shl 8) or self.scriptPtr.fetchByte()) shl 1
+            let off = ((offsetHi.uint16 shl 8) or self.scriptPtr.fetchByte()) shl 1
             pt.x = self.scriptPtr.fetchByte().int16
             self.res.useSegVideo2 = false
             if (opcode and 0x20) == 0:
@@ -445,13 +447,14 @@ proc executeTask(self: var Script) =
                     self.res.useSegVideo2 = true
                 else:
                     zoom = self.scriptPtr.fetchByte().int
-            debug(DBG_VIDEO, "vid_opcd_0x40 : off=0x%X x=%d y=%d", off, pt.x, pt.y)
+            debug(DBG_VIDEO, &"vid_opcd_0x40 : off=0x{off:X} x={pt.x} y={pt.y}")
+            echo "useSegVideo2=", cast[int](self.res.segVideo2)
             self.vid.setDataBuffer(if self.res.useSegVideo2: self.res.segVideo2 else: self.res.segVideo1, off)
-            self.vid.drawShape(0xFF.byte, zoom.uint16, addr pt)
+            self.vid.drawShape(0xFF, zoom.uint16, pt)
         else:
             if opcode > 0x1A:
                 discard
-                #error("Script::executeTask() ec=0x%X invalid opcode=0x%X", 0xFFF, opcode)
+                error &"Script::executeTask() ec=0xFFF invalid opcode=0x{opcode:X}"
             else:
                 opTable[opcode](self)
 
@@ -459,13 +462,13 @@ proc runTasks*(self: var Script) =
     for i in 0..<0x40:
         if self.sys.pi.quit:
             return
-        if self.scriptStates[0,i] == 0:
-            var n = self.scriptTasks[0,i].uint16
+        if self.scriptStates[0, i] == 0:
+            var n = self.scriptTasks[0,i]
             if n != 0xFFFF:
                 self.scriptPtr.pc = self.res.segCode + n.int
                 self.stackPtr = 0
                 self.scriptPaused = false
-                debug(DBG_SCRIPT, &"Script::runTasks() i=0x{i:02X} n=0x{n:02X}")
+                debug(DBG_SCRIPT, &"Script::runTasks() i=0x{i:02X} n=0x{n:04X}")
                 self.executeTask()
                 self.scriptTasks[0,i] = cast[uint16](self.scriptPtr.pc) - cast[uint16](self.res.segCode)
                 debug(DBG_SCRIPT, &"Script::runTasks() i=0x{i:02X} pos=0x{self.scriptTasks[0,i]:X}")

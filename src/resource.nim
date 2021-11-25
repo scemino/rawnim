@@ -33,14 +33,17 @@ type
         bankPos: uint32       # 0x8
         packedSize: uint32    # 0xC
         unpackedSize: uint32  # 0x12
-    Resource* = object
+    Resource* = ref ResourceObj
+    ResourceObj* = object
         vid: Video
         memList: array[EntriesCount+1, MemEntry]
         hasPasswordScreen: bool
         currentPart*, nextPart*: uint16
         memPtrStart, scriptBakPtr, scriptCurPtr, vidBakPtr, vidCurPtr: ptr byte
+        memPtr: seq[byte]
         useSegVideo2*: bool
-        segVideoPal, segCode*, segVideo1*, segVideo2*: ptr byte
+        segVideoPal*, segCode*, segVideo1*, segVideo2*: ptr byte
+    ResourceRef* = ref Resource
     ResType = enum
         RT_SOUND = 0,
         RT_MUSIC  = 1,
@@ -50,19 +53,19 @@ type
         RT_SHAPE = 5,
         RT_BANK = 6, # common part shapes (bank2.mat)
 
-proc allocMemBlock*(self: var Resource) =
-    var buffer = newSeq[byte](MEM_BLOCK_SIZE)
-    self.memPtrStart = addr buffer[0]
+proc allocMemBlock*(self: Resource) =
+    self.memPtr = newSeq[byte](MemBlockSize)
+    self.memPtrStart = addr self.memPtr[0]
     self.scriptCurPtr = self.memPtrStart
     self.scriptBakPtr = self.memPtrStart
-    self.vidCurPtr = self.memPtrStart + MEM_BLOCK_SIZE - 0x800 * 16
+    self.vidCurPtr = self.memPtrStart + MemBlockSize - 0x800 * 16
     self.vidBakPtr = self.vidCurPtr
     self.useSegVideo2 = false
 
 proc getBankName(bankNum: byte): string =
     result = &"bank{bankNum:02X}"
 
-proc readEntries*(self: var Resource) =
+proc readEntries*(self: Resource) =
     info "Read entries"
     var f = openFileStream("memlist.bin")
     for i in 0..EntriesCount:
@@ -115,7 +118,7 @@ proc dumpEntries*(self: Resource) =
         else:
             debug &"{name} read failed"
 
-proc invalidateRes*(self: var Resource) =
+proc invalidateRes*(self: Resource) =
     for i in 0..<self.memList.len:
         var me = self.memList[i]
         if (me.entryType <= 2 or me.entryType > 6):
@@ -123,12 +126,12 @@ proc invalidateRes*(self: var Resource) =
     self.scriptCurPtr = self.scriptBakPtr
     self.vid.currentPal = 0xFF
 
-proc invalidateAll(self: var Resource) =
+proc invalidateAll(self: Resource) =
     for i in 0..<self.memList.len:
         self.memList[i].status = STATUS_NULL
     self.scriptCurPtr = self.memPtrStart
 
-proc load(self: var Resource) =
+proc load(self: Resource) =
     while true:
         var me : ptr MemEntry
 
@@ -157,9 +160,9 @@ proc load(self: var Resource) =
             # TODO: warning "Resource::load() ec=0xF00 (me.bankNum == 0)"
             me.status = STATUS_NULL
         else:
-            var bufPos = (cast[int](memPtr) - cast[int](self.memPtrStart)).int
+            let bufPos = cast[int](memPtr) - cast[int](self.memPtrStart)
             debug(DBG_BANK, &"Resource::load() bufPos=0x{bufPos:0X} size={me.packedSize} type={me.entryType} pos=0x{me.bankPos:X} bankNum={me.bankNum}")
-            if self.readBank(me[],memPtr):
+            if self.readBank(me[], memPtr):
                 if me.entryType == RT_BITMAP.byte:
                     self.vid.copyBitmapPtr(self.vidCurPtr, me.unpackedSize)
                     me.status = STATUS_NULL
@@ -175,7 +178,9 @@ proc load(self: var Resource) =
                     continue
                 error &"Unable to read resource {resourceNum} from bank {me.bankNum}"
 
-proc setupPart*(self: var Resource, ptrId: int) =
+proc setupPart*(self: Resource, ptrId: int) =
+    echo &"ptrId={ptrId}"
+    echo &"self.currentPart={self.currentPart}"
     if ptrId.uint16 != self.currentPart:
         var
             ipal = 0.byte
@@ -202,10 +207,11 @@ proc setupPart*(self: var Resource, ptrId: int) =
         self.segVideo1 = self.memList[ivd1].bufPtr
         if ivd2 != 0:
             self.segVideo2 = self.memList[ivd2].bufPtr
+            echo &"ivd2={ivd2}"
         self.currentPart = ptrId.uint16
     self.scriptBakPtr = self.scriptCurPtr
 
-proc update*(self: var Resource, num: uint16) =
+proc update*(self: Resource, num: uint16) =
     if num > 16000:
         self.nextPart = num
         return
