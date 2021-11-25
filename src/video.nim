@@ -7,6 +7,8 @@ import scriptptr
 import color
 import point
 import quadstrip
+import staticres
+import tables
 
 const 
     BITMAP_W = 320
@@ -150,8 +152,36 @@ proc drawShapeParts(self: Video, zoom: uint16, pgc: Point) =
         self.drawShape(color.byte, zoom, po)
         self.pData.pc = bak
 
-proc drawString*(self: Video, color: byte, x, y, strId: uint16) =
-    assert(false)
+proc stringsTable(): Table[uint16, string] {.inline.} =
+    result = stringsTableEng
+
+proc drawString*(self: Video, color: byte, xx, yy, strId: uint16) =
+    var x = xx
+    var y = yy
+    var escapedChars = false
+    var str = stringsTable()[strId]
+    debug(DBG_VIDEO, &"drawString({color}, {x}, {y}, '{str}')")
+    var xx = x.uint16
+    var len = str.len
+    var i = 0
+    while i < len:
+        if str[i] == '\n' or str[i] == '\r':
+            y += 8
+            x = xx
+        elif str[i] == '\\' and escapedChars:
+            i += 1
+            if i < len:
+                case str[i]:
+                of 'n':
+                    y += 8;
+                    x = xx;
+                else:
+                    discard
+        else:
+            var pt = newPoint(x.int16 * 8, y.int16)
+            self.graphics.drawStringChar(self.buffers[0], color, str[i], pt)
+            inc x
+        inc i
 
 proc fillPage*(self: Video, page, color: byte) =
     self.graphics.clearBuffer(self.getPagePtr(page).int, color)

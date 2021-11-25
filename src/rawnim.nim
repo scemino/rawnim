@@ -6,6 +6,7 @@ import graphics
 import color
 import quadstrip
 import point
+import video
 
 when isMainModule:
   g_debugMask = {DBG_SCRIPT, DBG_BANK, DBG_VIDEO, DBG_SND, DBG_SER, DBG_INFO, DBG_PAK, DBG_RESOURCE}
@@ -36,6 +37,8 @@ when isMainModule:
   # gfx.clearBuffer(1, 0)
   # gfx.setWorkPagePtr(1)
   # gfx.drawPolygon(1, qs)
+  # e.vid.setWorkPagePtr(1)
+  # e.vid.drawString(8, 0, 40, 0x190'u16)
 
   # while true:
   #   sys.processEvents()

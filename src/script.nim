@@ -159,9 +159,9 @@ proc op_condJmp(self: var Script) =
     if (op and 0x80) != 0:
         a = self.scriptVars[self.scriptPtr.fetchByte().int]
     elif (op and 0x40) != 0:
-        a = self.scriptPtr.fetchWord().int16
+        a = cast[int16](self.scriptPtr.fetchWord())
     else:
-        a = self.scriptPtr.fetchByte().int16
+        a = cast[int16](self.scriptPtr.fetchByte())
     debug(DBG_SCRIPT, &"Script::op_condJmp({op:02X}, 0x{b:02X}, 0x{a:02X}) var=0x{variable:02X}")
     var expression = false
     case (op and 7):

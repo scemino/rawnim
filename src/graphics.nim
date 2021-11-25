@@ -5,6 +5,7 @@ import ptrmath
 import util
 import point
 import quadstrip
+import staticres
 
 const
     COL_ALPHA = 0x10.byte # transparent pixel (OR'ed with 0x8)
@@ -233,3 +234,20 @@ proc drawPolygon*(self: Graphics, color: byte, quadStrip: QuadStrip) =
 proc drawQuadStrip*(self: Graphics, buffer: byte, color: byte, qs: QuadStrip) =
     self.setWorkPagePtr(buffer)
     self.drawPolygon(color, qs)
+
+proc drawChar(self: Graphics, c: char, xx, yy: uint16, color: byte) =
+    if xx <= GFX_W - 8 and yy <= GFX_H - 8:
+        var x = self.xScale(xx.int)
+        var y = self.yScale(yy.int)
+        var ftOffset = ((cast[int](c) - 0x20) * 8).int
+        var offset = (x + y * self.w) * self.byteDepth
+        if self.byteDepth == 1:
+            for j in 0..<8:
+                var ch = font[ftOffset + j]
+                for i in 0..<8:
+                    if (ch.int and (1 shl (7 - i))) != 0:
+                        self.drawPagePtr[offset + j * self.w + i] = color
+
+proc drawStringChar*(self: Graphics, buffer: byte, color: byte, c: char, pt: Point) =
+    self.setWorkPagePtr(buffer)
+    self.drawChar(c, pt.x.uint16, pt.y.uint16, color)

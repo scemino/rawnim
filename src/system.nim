@@ -15,7 +15,7 @@ type
 
 proc init*(self: System, title: string) =
     init(INIT_VIDEO or INIT_AUDIO or INIT_JOYSTICK or INIT_GAMECONTROLLER)
-    showCursor(false)
+    #showCursor(false)
     # SetHint(HINT_RENDER_SCALE_QUALITY, "1")
 
     var windowW = 640.cint
