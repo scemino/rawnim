@@ -37,7 +37,7 @@ type
     ResourceObj* = object
         vid: Video
         memList: array[EntriesCount+1, MemEntry]
-        hasPasswordScreen: bool
+        hasPasswordScreen*: bool
         currentPart*, nextPart*: uint16
         memPtrStart, scriptBakPtr, scriptCurPtr, vidBakPtr, vidCurPtr: ptr byte
         memPtr: seq[byte]

@@ -9,6 +9,7 @@ import video
 import util
 import graphics
 import point
+import parts
 
 type
     ScriptVars = enum
@@ -28,6 +29,7 @@ type
         fastMode: bool
         screenNum: int
         startTime, timeStamp: uint32
+        fastMode: bool
 
 proc newScript*(res: Resource, vid: Video): Script =
     result = Script(res: res, vid: vid)
@@ -49,6 +51,54 @@ proc init*(self: var Script) =
 #endif
     self.scriptVars[0xE4] = 20
 
+proc updateInput*(self: var Script) =
+    self.sys.processEvents()
+    if self.res.currentPart == kPartPassword.uint16:
+        var c = self.sys.pi.lastChar
+        if c == cast[char](8) or c == cast[char](0) or (c >= 'a' and c <= 'z'):
+            self.scriptVars[svLastKeyChar.int] = cast[int16](cast[int](c) and not 0x20)
+            self.sys.pi.lastChar = cast[char](0)
+    var lr, m, ud, jd: int16
+    if self.sys.pi.dirMask.contains(DIR_RIGHT):
+        lr = 1
+        m = m or 1
+    if self.sys.pi.dirMask.contains(DIR_LEFT):
+        lr = -1
+        m = m or 2
+    if self.sys.pi.dirMask.contains(DIR_DOWN):
+        ud = 1
+        jd = 1
+        m = m or 4 # crouch
+    if self.sys.pi.dirMask.contains(DIR_UP):
+        ud = -1
+        jd = -1
+        m = m or 8 # jump
+    self.scriptVars[svHeroPosUpDown.int] = ud
+    self.scriptVars[svHeroPosJumpDown.int] = jd
+    self.scriptVars[svHeroPosLeftRight.int] = lr
+    self.scriptVars[svHeroPosMask.int] = m
+    var action = 0.int16
+    if self.sys.pi.action:
+        action = 1
+        m = m or 0x80
+    self.scriptVars[svHeroAction.int] = action
+    self.scriptVars[svHeroActionPosMask.int] = m
+
+proc inp_handleSpecialKeys*(self: var Script) =
+    if self.sys.pi.pause:
+        if self.res.currentPart != kPartCopyProtection.uint16 and self.res.currentPart != kPartIntro.uint16:
+            self.sys.pi.pause = false;
+            while not self.sys.pi.pause and not self.sys.pi.quit:
+                self.sys.processEvents()
+                self.sys.sleep(50);
+        self.sys.pi.pause = false
+
+    if self.sys.pi.code:
+        self.sys.pi.code = false
+        if self.res.hasPasswordScreen:
+            if self.res.currentPart != kPartPassword.uint16 and self.res.currentPart != kPartCopyProtection.uint16:
+                self.res.nextPart = kPartPassword.uint16
+
 proc fixUpPalette_changeScreen(self: var Script, part, screen: int) =
     var pal = -1
     case part:
@@ -64,15 +114,13 @@ proc fixUpPalette_changeScreen(self: var Script, part, screen: int) =
         debug(DBG_SCRIPT, &"Setting palette {pal} for part {part} screen {screen}")
         self.vid.changePal(self.res.segVideoPal, pal.byte)
 
-proc inp_handleSpecialKeys(self: var Script) =
-    discard
-
 proc snd_playSound(self: Script, resNum: uint16, freq, vol, channel: uint8) =
     discard
 
 proc snd_playMusic(self: Script, resNum, delay: uint16, pos: byte) =
     discard
 
+{.push overflowchecks: off.}
 proc op_movConst(self: var Script) =
     var i = self.scriptPtr.fetchByte()
     var n = self.scriptPtr.fetchWord()
@@ -343,6 +391,7 @@ proc op_playMusic(self: var Script) =
     var pos = self.scriptPtr.fetchByte()
     debug(DBG_SCRIPT, &"Script::op_playMusic(0x{resNum:X}, {delay}, {pos})")
     self.snd_playMusic(resNum, delay, pos)
+{.pop.}
 
 const 
     opTable = [
@@ -399,9 +448,6 @@ proc setupTasks*(self: var Script) =
         if n != 0xFFFF:
             self.scriptTasks[0,i] = if n == 0xFFFE: 0xFFFF else: n.int
             self.scriptTasks[1,i] = 0xFFFF
-
-proc updateInput*(self: var Script) =
-    self.sys.processEvents()
 
 proc executeTask(self: var Script) =
     while not self.scriptPaused:

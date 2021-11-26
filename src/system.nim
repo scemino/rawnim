@@ -10,8 +10,18 @@ type
         aspectRatio: array[4, float]
         w, h: cint
         texW, texH: int
+    PlayerDirection* = enum
+        DIR_LEFT  = 1 shl 0
+        DIR_RIGHT = 1 shl 1
+        DIR_UP    = 1 shl 2
+        DIR_DOWN  = 1 shl 3
     PlayerInput* = object
+        dirMask*: set[PlayerDirection]
         quit*: bool
+        action*: bool # run,shoot
+        code*: bool
+        pause*: bool
+        lastChar*: char
 
 proc init*(self: System, title: string) =
     init(INIT_VIDEO or INIT_AUDIO or INIT_JOYSTICK or INIT_GAMECONTROLLER)
@@ -82,5 +92,40 @@ proc processEvents*(self: System) =
                 self.h = ev.window.data2
             elif windowEvent.event == WindowEvent_Close:
                 self.pi.quit = true
+        of KeyDown:
+            var keyEvent = cast[KeyboardEventPtr](addr(ev))
+            self.pi.lastChar = cast[char](keyEvent.keysym.sym)
+            case keyEvent.keysym.sym:
+            of K_LEFT:
+                self.pi.dirMask.incl {DIR_LEFT}
+            of K_RIGHT:
+                self.pi.dirMask.incl {DIR_RIGHT}
+            of K_UP:
+                self.pi.dirMask.incl {DIR_UP}
+            of K_DOWN:
+                self.pi.dirMask.incl {DIR_DOWN}
+            of K_SPACE, K_RETURN:
+                self.pi.action = true
+            else:
+                discard
+        of KeyUp:
+            var keyEvent = cast[KeyboardEventPtr](addr(ev))
+            case keyEvent.keysym.sym:
+            of K_LEFT:
+                self.pi.dirMask.excl {DIR_LEFT}
+            of K_RIGHT:
+                self.pi.dirMask.excl {DIR_RIGHT}
+            of K_UP:
+                self.pi.dirMask.excl {DIR_UP}
+            of K_DOWN:
+                self.pi.dirMask.excl {DIR_DOWN}
+            of K_SPACE, K_RETURN:
+                self.pi.action = false
+            of K_c:
+                self.pi.code = true
+            of K_p:
+                self.pi.pause = true
+            else:
+                discard
         else:
             discard
