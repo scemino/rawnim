@@ -361,25 +361,25 @@ proc op_and(self: var Script) =
     var i = self.scriptPtr.fetchByte()
     var n = self.scriptPtr.fetchWord()
     debug(DBG_SCRIPT, &"Script::op_and(0x{i:02X}, {n})")
-    self.scriptVars[i] = self.scriptVars[i].int16 and n.int16
+    self.scriptVars[i] = cast[int16](self.scriptVars[i]) and cast[int16](n)
 
 proc op_or(self: var Script) =
     var i = self.scriptPtr.fetchByte()
     var n = self.scriptPtr.fetchWord()
     debug(DBG_SCRIPT, &"Script::op_or(0x{i:02X}, {n})")
-    self.scriptVars[i] = self.scriptVars[i].int16 or n.int16
+    self.scriptVars[i] = cast[int16](self.scriptVars[i]) or cast[int16](n)
 
 proc op_shl(self: var Script) =
     var i = self.scriptPtr.fetchByte()
     var n = self.scriptPtr.fetchWord()
     debug(DBG_SCRIPT, &"Script::op_shl(0x{i:02X}, {n})")
-    self.scriptVars[i] = self.scriptVars[i].int16 shl n.int16
+    self.scriptVars[i] = cast[int16](self.scriptVars[i]) shl cast[int16](n)
 
 proc op_shr(self: var Script) =
     var i = self.scriptPtr.fetchByte()
     var n = self.scriptPtr.fetchWord()
     debug(DBG_SCRIPT, &"Script::op_shr(0x{i:02X}, {n})")
-    self.scriptVars[i] = self.scriptVars[i].int16 shr n.int16
+    self.scriptVars[i] = cast[int16](self.scriptVars[i]) shr cast[int16](n)
 
 proc op_playSound(self: var Script) =
     var resNum = self.scriptPtr.fetchWord()
@@ -446,7 +446,7 @@ proc restartAt*(self: var Script, part, pos: int = -1) =
     self.scriptTasks[0,0] = 0.uint16
     self.screenNum = -1
     if pos >= 0:
-        self.scriptVars[0] = pos.int16
+        self.scriptVars[0] = cast[int16](pos)
     self.startTime = self.sys.getTimeStamp()
     self.timeStamp = self.startTime
     # TODO: if part == kPartWater.int:
