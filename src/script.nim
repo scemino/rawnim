@@ -9,7 +9,8 @@ import video
 import util
 import graphics
 import point
-import parts
+import mixer
+import staticres
 
 type
     ScriptVars = enum
@@ -19,6 +20,7 @@ type
         res: Resource
         vid: Video
         sys*: System
+        mix: Mixer
         scriptVars: array[256, int16]
         scriptStackCalls: array[64, uint16]
         scriptTasks: Grid[2, 64, uint16]
@@ -29,10 +31,9 @@ type
         fastMode: bool
         screenNum: int
         startTime, timeStamp: uint32
-        fastMode: bool
 
-proc newScript*(res: Resource, vid: Video): Script =
-    result = Script(res: res, vid: vid)
+proc newScript*(mix: Mixer, res: Resource, vid: Video): Script =
+    result = Script(mix: mix, res: res, vid: vid)
 
 proc init*(self: var Script) =
     self.scriptVars.fill(0)
@@ -114,10 +115,23 @@ proc fixUpPalette_changeScreen(self: var Script, part, screen: int) =
         debug(DBG_SCRIPT, &"Setting palette {pal} for part {part} screen {screen}")
         self.vid.changePal(self.res.segVideoPal, pal.byte)
 
-proc snd_playSound(self: Script, resNum: uint16, freq, vol, channel: uint8) =
-    discard
+proc snd_playSound(self: var Script, resNum: uint16, freq, volume, channel: int) =
+    debug(DBG_SND, &"snd_playSound(0x{resNum:X}, {freq}, {volume}, {channel}")
+    var vol = volume
+    if vol == 0:
+        self.mix.stopSound(channel)
+        return
+    if vol > 63:
+        vol = 63
+    var me = self.res.memList[resNum]
+    if me.status == STATUS_LOADED:
+        assert(freq < 40);
+        self.mix.playSoundRaw(channel and 3, me.bufPtr, freqTable[freq], vol)
+    else:
+        debug(DBG_SND, &"snd_playSound(0x{resNum:X}, {freq}, {volume}, {channel} -> not loaded")
 
 proc snd_playMusic(self: Script, resNum, delay: uint16, pos: byte) =
+    # TODO playMusic
     discard
 
 {.push overflowchecks: off.}
@@ -369,9 +383,9 @@ proc op_shr(self: var Script) =
 
 proc op_playSound(self: var Script) =
     var resNum = self.scriptPtr.fetchWord()
-    var freq = self.scriptPtr.fetchByte()
-    var vol = self.scriptPtr.fetchByte()
-    var channel = self.scriptPtr.fetchByte()
+    var freq = self.scriptPtr.fetchByte().int
+    var vol = self.scriptPtr.fetchByte().int
+    var channel = self.scriptPtr.fetchByte().int
     debug(DBG_SCRIPT, &"Script::op_playSound(0x{resNum:X}, {freq}, {vol}, {channel})")
     self.snd_playSound(resNum, freq, vol, channel)
 
@@ -380,7 +394,7 @@ proc op_updateResources(self: var Script) =
     debug(DBG_SCRIPT, &"Script::op_updateResources({num})")
     if num == 0:
         #self.ply.stop()
-        #self.mix.stopAll()
+        self.mix.stopAll()
         self.res.invalidateRes()
     else:
         self.res.update(num)
@@ -412,6 +426,7 @@ const
     ]
 
 proc restartAt*(self: var Script, part, pos: int = -1) =
+    self.mix.stopAll()
     if part == kPartCopyProtection.int:
         # VAR(0x54) indicates if the "Out of this World" title screen should be presented
         #
@@ -497,7 +512,6 @@ proc executeTask(self: var Script) =
             self.vid.drawShape(0xFF, zoom.uint16, pt)
         else:
             if opcode > 0x1A:
-                discard
                 error &"Script::executeTask() ec=0xFFF invalid opcode=0x{opcode:X}"
             else:
                 opTable[opcode](self)

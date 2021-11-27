@@ -19,15 +19,15 @@ const
         [ 0x7D, 0x7E, 0x7F, 0x00 ], # 16008 - password screen
         [ 0x7D, 0x7E, 0x7F, 0x00 ]  # 16009 - password screen
     ]
-    STATUS_NULL = 0
-    STATUS_LOADED = 1
-    STATUS_TOLOAD = 2
+    STATUS_NULL* = 0
+    STATUS_LOADED* = 1
+    STATUS_TOLOAD* = 2
 
 type
     MemEntry = object
-        status: byte          # 0x0
+        status*: byte          # 0x0
         entryType: byte       # 0x1, Resource::ResType
-        bufPtr: ptr byte      # 0x2
+        bufPtr*: ptr byte      # 0x2
         rankNum: byte         # 0x6
         bankNum: byte         # 0x7
         bankPos: uint32       # 0x8
@@ -36,7 +36,7 @@ type
     Resource* = ref ResourceObj
     ResourceObj* = object
         vid: Video
-        memList: array[EntriesCount+1, MemEntry]
+        memList*: array[EntriesCount+1, MemEntry]
         hasPasswordScreen*: bool
         currentPart*, nextPart*: uint16
         memPtrStart, scriptBakPtr, scriptCurPtr, vidBakPtr, vidCurPtr: ptr byte
@@ -145,6 +145,7 @@ proc load(self: Resource) =
                 me = it
                 resourceNum = i
         if me == nil:
+            debug(DBG_BANK, "Resource::load() => no entry found")
             break # no entry found
 
         var memPtr: ptr byte
@@ -214,9 +215,8 @@ proc update*(self: Resource, num: uint16) =
     if num > 16000:
         self.nextPart = num
         return
-    var me = self.memList[num]
-    if me.status == STATUS_NULL:
-        me.status = STATUS_TOLOAD
+    if self.memList[num].status == STATUS_NULL:
+        self.memList[num].status = STATUS_TOLOAD
         self.load()
 
 when isMainModule:

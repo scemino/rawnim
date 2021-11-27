@@ -1,12 +1,8 @@
-import std/[algorithm,logging,sequtils]
+import std/logging
 import engine
 import util
 import system
 import graphics
-import color
-import quadstrip
-import point
-import video
 
 when isMainModule:
   g_debugMask = {DBG_SCRIPT, DBG_BANK, DBG_VIDEO, DBG_SND, DBG_SER, DBG_INFO, DBG_PAK, DBG_RESOURCE}

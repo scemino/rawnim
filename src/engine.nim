@@ -3,6 +3,7 @@ import script
 import video
 import graphics
 import system
+import mixer
 
 type
     Engine* = object
@@ -11,6 +12,7 @@ type
         res: Resource
         vid: Video
         sys: System
+        mix: Mixer
         partNum: int
 
 const restartPos: array[36 * 2, int] = [
@@ -27,7 +29,8 @@ const restartPos: array[36 * 2, int] = [
 proc newEngine*(partNum: int) : Engine =
     var res = new(Resource)
     var video = new(Video)
-    result = Engine(vid: video, partNum: partNum, res: res, script: newScript(res, video))
+    var mix = new(Mixer)
+    result = Engine(vid: video, partNum: partNum, res: res, script: newScript(mix, res, video), mix: mix)
 
 proc setSystem*(self: var Engine, sys: System, graphics: Graphics) =
     self.sys = sys
@@ -45,6 +48,7 @@ proc setup*(self: var Engine) =
     #self.res.dumpEntries()
     self.graphics.init(w, h)
     self.script.init()
+    self.mix.init();
     let num = self.partNum
     if num < 36:
         self.script.restartAt(restartPos[num * 2], restartPos[num * 2 + 1])
@@ -74,4 +78,4 @@ proc run*(self: var Engine) =
     self.script.updateInput()
     self.processInput()
     self.script.runTasks()
-    #self.mix.update()
+    self.mix.update()
