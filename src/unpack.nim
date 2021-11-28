@@ -64,7 +64,6 @@ proc bytekiller_unpack*(dst: ptr byte, dstSize: int, src: ptr byte, srcSize: int
     uc.bits = swapEndian32(uc.src)
     uc.src -= 4
     uc.crc = uc.crc xor uc.bits
-    debug uc.size.repr
     while uc.size > 0:
         if not uc.nextBit():
             if not uc.nextBit():

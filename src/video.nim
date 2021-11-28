@@ -9,6 +9,7 @@ import point
 import quadstrip
 import staticres
 import tables
+import lang
 
 const 
     BITMAP_W = 320
@@ -24,9 +25,10 @@ type
         pData: ScriptPtr
         dataBuf: ptr byte
         tempBitmap: seq[byte]
+        lang: Language
     
-proc newVideo*(): Video =
-    result = Video(tempBitmap: newSeq[byte](BITMAP_W * BITMAP_H))
+proc newVideo*(lang: Language): Video =
+    result = Video(tempBitmap: newSeq[byte](BITMAP_W * BITMAP_H), lang: lang)
 
 proc decode_amiga(source: ptr byte, dest: ptr byte) =
     var src = source
@@ -152,14 +154,14 @@ proc drawShapeParts(self: Video, zoom: uint16, pgc: Point) =
         self.drawShape(color.byte, zoom, po)
         self.pData.pc = bak
 
-proc stringsTable(): Table[uint16, string] {.inline.} =
-    result = stringsTableEng
+proc stringsTable(lang: Language): Table[uint16, string] {.inline.} =
+    if lang==American: stringsTableEng else: stringsTableFr
 
 proc drawString*(self: Video, color: byte, xx, yy, strId: uint16) =
     var x = xx
     var y = yy
     var escapedChars = false
-    var str = stringsTable()[strId]
+    var str = stringsTable(self.lang)[strId]
     debug(DBG_VIDEO, &"drawString({color}, {x}, {y}, '{str}')")
     var xx = x.uint16
     var len = str.len

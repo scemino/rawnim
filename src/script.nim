@@ -11,6 +11,7 @@ import graphics
 import point
 import mixer
 import staticres
+import lang
 
 type
     ScriptVars = enum
@@ -31,9 +32,10 @@ type
         fastMode: bool
         screenNum: int
         startTime, timeStamp: uint32
+        lang: Language
 
-proc newScript*(mix: Mixer, res: Resource, vid: Video): Script =
-    result = Script(mix: mix, res: res, vid: vid)
+proc newScript*(mix: Mixer, res: Resource, vid: Video, lang: Language): Script =
+    result = Script(mix: mix, res: res, vid: vid, lang: lang)
 
 proc init*(self: var Script) =
     self.scriptVars.fill(0)
@@ -439,7 +441,7 @@ proc restartAt*(self: var Script, part, pos: int = -1) =
         #   00CA: updateResources(res=71)
 
         # Use "Another World" title screen if language is set to French
-        self.scriptVars[0x54] = 0x1  #: 0x81
+        self.scriptVars[0x54] = if self.lang==American: 0x81 else: 0x1
     self.res.setupPart(part)
     self.scriptTasks.fill(0xFFFF.uint16)
     self.scriptStates.fill(0)

@@ -1,41 +1,81 @@
-import std/logging
+import std/[logging, parseopt, strutils, strformat]
 import engine
 import util
 import system
 import graphics
+import lang
 
-when isMainModule:
-  g_debugMask = {DBG_SCRIPT, DBG_BANK, DBG_VIDEO, DBG_SND, DBG_SER, DBG_INFO, DBG_PAK, DBG_RESOURCE}
-  const part = 16001
-  addHandler newConsoleLogger()
+type
+  Settings = object
+    datapath: string
+    lang: Language
+    part: int
+
+const
+  Usage = """
+rawnim - Another World/Out of This World engine reimplementation written in pure nim.
+
+Usage:
+  rawnim [options]
+
+Options:  
+  --help,          -h        Shows this help and quits
+  --datapath:path, -d:path   Path to data files (default '.')
+  --language=lang, -l:lang   Language (fr,us,de,es,it)
+  --part=num,      -p:num    Game part to start from (0-35 or 16001-16009)
+"""
+
+proc runGame(settings: Settings) =
   var sys = new (System)
   var gfx = new (GraphicsObj)
-  sys.init("Another world")
-  var e = newEngine(part)
+  sys.init(getGameTitle(settings.lang))
+  var e = newEngine(settings.part, settings.datapath, settings.lang)
   e.setSystem(sys, gfx)
   e.setup()
   while true:
     e.run()
   e.finish()
-  
-  # var pal1 = [Color(r: 17, g: 17, b: 17), Color(r: 136, g: 0, b: 0), Color(r: 17, g: 34, b: 68), Color(r: 17, g: 51, b: 85), Color(r: 34, g: 68, b: 102), Color(r: 51, g: 85, b: 119), Color(r: 85, g: 119, b: 153), Color(r: 119, g: 170, b: 187), Color(r: 187, g: 136, b: 0), Color(r: 255, g: 0, b: 0), Color(r: 204, g: 153, b: 0), Color(r: 221, g: 170, b: 0), Color(r: 238, g: 204, b: 0), Color(r: 255, g: 238, b: 0), Color(r: 255, g: 255, b: 119), Color(r: 255, g: 255, b: 170)]
-  # gfx.setPalette(pal1, 16)
-  
-  # var qs : QuadStrip
-  # qs.numVertices = 6
-  # qs.vertices[0] = Point(x: 20, y: 0)
-  # qs.vertices[1] = Point(x: 39, y: 15)
-  # qs.vertices[2] = Point(x: 30, y: 49)
-  # qs.vertices[3] = Point(x: 25, y: 49)
-  # qs.vertices[4] = Point(x: 0, y: 15)
-  # qs.vertices[5] = Point(x: 20, y: 0)
 
-  # gfx.clearBuffer(1, 0)
-  # gfx.setWorkPagePtr(1)
-  # gfx.drawPolygon(1, qs)
-  # e.vid.setWorkPagePtr(1)
-  # e.vid.drawString(8, 0, 40, 0x190'u16)
+proc writeHelp() =
+  echo Usage
+  quit(0)
 
-  # while true:
-  #   sys.processEvents()
-  #   gfx.drawBuffer(1, sys)
+proc parseLanguage(lang: string): Language =
+  case lang
+  of "fr":
+    result = French
+  of "us":
+    result = American
+  else:
+    stderr.write &"Invalid lang: {lang}"
+    quit(1)
+
+proc parseGameOptions(): Settings =
+  var settings = Settings(datapath: ".", lang: French, part: 16001)
+  var p = initOptParser()
+
+  # parse options
+  for kind, key, val in p.getopt():
+    case kind
+    of cmdEnd: doAssert(false)  # Doesn't happen with getopt()
+    of cmdShortOption, cmdLongOption:
+      case normalize(key)
+      of "h", "help":
+        writeHelp()
+      of "d", "datapath":
+        settings.datapath = val
+      of "g", "debug":
+        g_debugMask = {DBG_SCRIPT, DBG_BANK, DBG_VIDEO, DBG_SND, DBG_SER, DBG_INFO, DBG_PAK, DBG_RESOURCE}
+      of "l", "language":
+        settings.lang = parseLanguage(val)
+      of "p", "part":
+        settings.part = parseInt(val)
+    of cmdArgument:
+      writeHelp()
+  
+  result = settings
+
+when isMainModule:
+  addHandler newConsoleLogger()
+  let settings = parseGameOptions()
+  runGame(settings)

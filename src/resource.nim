@@ -36,6 +36,7 @@ type
     Resource* = ref ResourceObj
     ResourceObj* = object
         vid: Video
+        datapath: string
         memList*: array[EntriesCount+1, MemEntry]
         hasPasswordScreen*: bool
         currentPart*, nextPart*: uint16
@@ -53,6 +54,10 @@ type
         RT_SHAPE = 5,
         RT_BANK = 6, # common part shapes (bank2.mat)
 
+proc newResource*(datapath: string): Resource =
+    result = new(Resource)
+    result.datapath = datapath
+
 proc allocMemBlock*(self: Resource) =
     self.memPtr = newSeq[byte](MemBlockSize)
     self.memPtrStart = addr self.memPtr[0]
@@ -62,12 +67,18 @@ proc allocMemBlock*(self: Resource) =
     self.vidBakPtr = self.vidCurPtr
     self.useSegVideo2 = false
 
-proc getBankName(bankNum: byte): string =
-    result = &"bank{bankNum:02X}"
+proc getBankName(self: Resource, bankNum: byte): string =
+    # HACK: don't know why joinPath does not work here
+    result = &"{self.datapath}{DirSep}bank{bankNum:02X}"
+
+proc getMemListPath(self: Resource): string =
+    result = &"{self.datapath}{DirSep}memlist.bin"
 
 proc readEntries*(self: Resource) =
-    info "Read entries"
-    var f = openFileStream("memlist.bin")
+    let path = self.getMemListPath()
+    if not fileExists(path):
+        quit &"File {path} does not exit"
+    var f = openFileStream(path)
     for i in 0..EntriesCount:
         self.memList[i].status = f.readUint8()
         self.memList[i].entryType = f.readUint8()
@@ -79,17 +90,15 @@ proc readEntries*(self: Resource) =
         self.memList[i].unpackedSize = f.readUint32BE()
         if self.memList[i].status == 0xFF:
             const num = memListParts[8][1] # 16008 bytecode
-            let bank = getBankName(self.memList[num].bankNum)
+            let bank = self.getBankName(self.memList[num].bankNum)
             self.hasPasswordScreen = fileExists(bank)
-            echo "hasPasswordScreen: ", self.hasPasswordScreen
             break
     f.close()
 
 proc readBank(self: Resource, me: MemEntry, dstBuf: ptr byte): bool =
     result = false
-    let bank = getBankName(me.bankNum)
+    let bank = self.getBankName(me.bankNum)
     if fileExists(bank):
-        debug &"File {bank} exits"  
         var f = openFileStream(bank)
         f.setPosition(me.bankPos.int)
         let count = f.readData(dstBuf, me.packedSize.int)
@@ -97,7 +106,7 @@ proc readBank(self: Resource, me: MemEntry, dstBuf: ptr byte): bool =
         if result and me.packedSize != me.unpackedSize:
             result = bytekiller_unpack(dstBuf, me.unpackedSize.int, dstBuf, me.packedSize.int)
     else:
-        debug &"File {bank} DOESN'T exits"
+        debug(DBG_BANK, "File {bank} DOESN'T exits")
 
 proc dumpFile(filename: string, p: seq[byte], size: int) =
     createDir "DUMP"
@@ -180,8 +189,6 @@ proc load(self: Resource) =
                 error &"Unable to read resource {resourceNum} from bank {me.bankNum}"
 
 proc setupPart*(self: Resource, ptrId: int) =
-    echo &"ptrId={ptrId}"
-    echo &"self.currentPart={self.currentPart}"
     if ptrId.uint16 != self.currentPart:
         var
             ipal = 0.byte
