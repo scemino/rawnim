@@ -1,4 +1,10 @@
 import sdl2
+import sdl2/joystick
+import sdl2/gamecontroller
+
+const 
+    joystickIndex = 0
+    joystickCommitValue = 16384
 
 type 
     System* = ref SystemObj
@@ -10,6 +16,8 @@ type
         aspectRatio: array[4, float]
         w, h: cint
         texW, texH: int
+        joystick: JoystickPtr
+        controller: GameControllerPtr
     PlayerDirection* = enum
         DIR_LEFT  = 1 shl 0
         DIR_RIGHT = 1 shl 1
@@ -41,6 +49,12 @@ proc init*(self: System, title: string) =
     self.aspectRatio[1] = 0
     self.aspectRatio[2] = 1
     self.aspectRatio[3] = 1
+    if numJoysticks() > 0:
+        discard gameControllerAddMapping("gamecontrollerdb.txt")
+        if isGameController(joystickIndex.cint):
+            self.controller = gameControllerOpen(joystickIndex)
+        if self.controller == nil:
+            self.joystick = joystickOpen(joystickIndex)
 
 proc updateScreen*(self: System) =
     self.renderer.present()
@@ -127,5 +141,100 @@ proc processEvents*(self: System) =
                 self.pi.pause = true
             else:
                 discard
+        of ControllerDeviceAdded:
+            var controllerEvent = cast[ControllerDeviceEventPtr](addr(ev))
+            self.controller = gameControllerOpen(controllerEvent.which.cint)
+        of ControllerDeviceRemoved:
+            close(self.controller)
+        of JoyHatMotion:
+            if self.joystick != nil:
+                self.pi.dirMask.reset()
+                if (ev.jhat.value and SDL_HAT_UP.byte) != 0:
+                    self.pi.dirMask.incl DIR_UP
+                if (ev.jhat.value and SDL_HAT_DOWN.byte) != 0:
+                    self.pi.dirMask.incl DIR_DOWN
+                if (ev.jhat.value and SDL_HAT_LEFT.byte) != 0:
+                    self.pi.dirMask.incl DIR_LEFT
+                if (ev.jhat.value and SDL_HAT_RIGHT.byte) != 0:
+                    self.pi.dirMask.incl DIR_RIGHT
+        of JoyAxisMotion:
+            if self.joystick != nil:
+                case ev.jaxis.axis:
+                of 0:
+                    self.pi.dirMask.excl {DIR_RIGHT, DIR_LEFT}
+                    if ev.jaxis.value > joystickCommitValue:
+                        self.pi.dirMask.incl DIR_RIGHT
+                    elif ev.jaxis.value < -joystickCommitValue:
+                        self.pi.dirMask.incl DIR_LEFT
+                of 1:
+                    self.pi.dirMask.excl {DIR_UP, DIR_DOWN}
+                    if ev.jaxis.value > joystickCommitValue:
+                        self.pi.dirMask.incl DIR_DOWN
+                    elif ev.jaxis.value < -joystickCommitValue:
+                        self.pi.dirMask.incl DIR_UP
+                else:
+                    discard
+        of JoyButtonDown, JoyButtonUp:
+            if self.joystick != nil:
+                self.pi.action = ev.jbutton.state == 1
+        of ControllerAxisMotion:
+            if self.controller != nil:
+                case ev.caxis.axis:
+                of SDL_CONTROLLER_AXIS_LEFTX, SDL_CONTROLLER_AXIS_RIGHTX:
+                    if ev.caxis.value < -joystickCommitValue:
+                        self.pi.dirMask.incl DIR_LEFT
+                    else:
+                        self.pi.dirMask.excl DIR_LEFT
+                    if ev.caxis.value > joystickCommitValue:
+                        self.pi.dirMask.incl DIR_RIGHT
+                    else:
+                        self.pi.dirMask.excl DIR_RIGHT
+                of SDL_CONTROLLER_AXIS_LEFTY, SDL_CONTROLLER_AXIS_RIGHTY:
+                    if ev.caxis.value < -joystickCommitValue:
+                        self.pi.dirMask.incl DIR_UP
+                    else:
+                        self.pi.dirMask.excl DIR_UP
+                    if ev.caxis.value > joystickCommitValue:
+                        self.pi.dirMask.incl DIR_DOWN
+                    else:
+                        self.pi.dirMask.excl DIR_DOWN
+                else: discard
+        of ControllerButtonDown, ControllerButtonUp:
+            if self.controller != nil:
+                let pressed = ev.cbutton.state == 1
+                case ev.cbutton.button:
+                of SDL_CONTROLLER_BUTTON_GUIDE:
+                    self.pi.code = pressed;
+                of SDL_CONTROLLER_BUTTON_START:
+                    self.pi.pause = pressed;
+                of SDL_CONTROLLER_BUTTON_DPAD_UP:
+                    if pressed:
+                        self.pi.dirMask.incl DIR_UP
+                    else:
+                        self.pi.dirMask.excl DIR_UP
+                of SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+                    if pressed:
+                        self.pi.dirMask.incl DIR_DOWN
+                    else:
+                        self.pi.dirMask.excl DIR_DOWN
+                of SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+                    if pressed:
+                        self.pi.dirMask.incl DIR_LEFT
+                    else:
+                        self.pi.dirMask.excl DIR_LEFT
+                of SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+                    if pressed:
+                        self.pi.dirMask.incl DIR_RIGHT
+                    else:
+                        self.pi.dirMask.excl DIR_RIGHT
+                of SDL_CONTROLLER_BUTTON_A:
+                    self.pi.action = pressed
+                of SDL_CONTROLLER_BUTTON_B:
+                    if pressed:
+                        self.pi.dirMask.incl DIR_UP
+                    else:
+                        self.pi.dirMask.excl DIR_UP
+                else:
+                    discard
         else:
             discard
