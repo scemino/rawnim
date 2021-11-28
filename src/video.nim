@@ -26,9 +26,10 @@ type
         dataBuf: ptr byte
         tempBitmap: seq[byte]
         lang: Language
+        useEGA: bool
     
-proc newVideo*(lang: Language): Video =
-    result = Video(tempBitmap: newSeq[byte](BITMAP_W * BITMAP_H), lang: lang)
+proc newVideo*(lang: Language, ega: bool): Video =
+    result = Video(tempBitmap: newSeq[byte](BITMAP_W * BITMAP_H), lang: lang, useEGA: ega)
 
 proc decode_amiga(source: ptr byte, dest: ptr byte) =
     var src = source
@@ -202,7 +203,7 @@ proc copyPage*(self: Video, src, dst: byte, vscroll: int16) =
             if sl != dl and vscroll >= -199 and vscroll <= 199:
                 self.graphics.copyBuffer(dl.int, sl.int, vscroll)
 
-proc readPaletteAmiga(self: Video, buf: ptr byte, num: int, pal: var array[16, Color]) =
+proc readPaletteAmiga(buf: ptr byte, num: int, pal: var array[16, Color]) =
     var p = buf + num * 16 * sizeof(uint16)
     for i in 0..<16:
         let color = READ_BE_UINT16(p)
@@ -214,10 +215,22 @@ proc readPaletteAmiga(self: Video, buf: ptr byte, num: int, pal: var array[16, C
         pal[i].g = (g shl 4) or g
         pal[i].b = (b shl 4) or b
 
+proc readPaletteEGA(buf: ptr byte, num: int, pal: var array[16, Color]) =
+    var p = buf + num * 16 * sizeof(uint16)
+    p += 1024 # EGA colors are stored after VGA (Amiga)
+    for i in 0..<16:
+        let color = READ_BE_UINT16(p)
+        p += 2
+        let ega = paletteEGA[((color shr 12) and 15)]
+        pal[i] = ega
+
 proc changePal*(self: Video, segVideoPal: ptr byte, palNum: byte) =
     if palNum < 32 and palNum != self.currentPal:
         var pal : array[16, Color]
-        self.readPaletteAmiga(segVideoPal, palNum.int, pal)
+        if self.useEGA:
+            readPaletteEGA(segVideoPal, palNum.int, pal)
+        else:
+            readPaletteAmiga(segVideoPal, palNum.int, pal)
         self.graphics.setPalette(pal, 16)
         self.currentPal = palNum
 

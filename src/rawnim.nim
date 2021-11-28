@@ -10,6 +10,7 @@ type
     datapath: string
     lang: Language
     part: int
+    ega: bool
 
 const
   Usage = """
@@ -23,13 +24,14 @@ Options:
   --datapath:path, -d:path   Path to data files (default '.')
   --language=lang, -l:lang   Language (fr,us,de,es,it)
   --part=num,      -p:num    Game part to start from (0-35 or 16001-16009)
+  --ega            -e        Use EGA palette
 """
 
 proc runGame(settings: Settings) =
   var sys = new (System)
   var gfx = new (GraphicsObj)
   sys.init(getGameTitle(settings.lang))
-  var e = newEngine(settings.part, settings.datapath, settings.lang)
+  var e = newEngine(settings.part, settings.datapath, settings.lang, settings.ega)
   e.setSystem(sys, gfx)
   e.setup()
   while true:
@@ -70,6 +72,8 @@ proc parseGameOptions(): Settings =
         settings.lang = parseLanguage(val)
       of "p", "part":
         settings.part = parseInt(val)
+      of "e", "ega":
+        settings.ega = true
     of cmdArgument:
       writeHelp()
   

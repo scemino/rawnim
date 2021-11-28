@@ -1,4 +1,5 @@
 import tables
+import color
 
 const stringsTableFr* = {
      0x001'u16: "P E A N U T  3000" ,
@@ -346,4 +347,23 @@ const freqTable*: array[40,uint16] = [
     0x20AB, 0x229C, 0x24B3, 0x26D7, 0x293F, 0x2BB2, 0x2E4C, 0x3110, 
     0x33FB, 0x370D, 0x3A43, 0x3DDF, 0x4157, 0x4538, 0x4998, 0x4DAE, 
     0x5240, 0x5764, 0x5C9A, 0x61C8, 0x6793, 0x6E19, 0x7485, 0x7BBD
+]
+
+const paletteEGA*: array[16, Color] = [
+    Color(r: 0x00'u8, g: 0x00'u8, b: 0x00'u8), # black #0
+    Color(r: 0x00'u8, g: 0x00'u8, b: 0xAA'u8), # blue #1
+    Color(r: 0x00'u8, g: 0xAA'u8, b: 0x00'u8), # green #2
+    Color(r: 0x00'u8, g: 0xAA'u8, b: 0xAA'u8), # cyan #3
+    Color(r: 0xAA'u8, g: 0x00'u8, b: 0x00'u8), # red #4
+    Color(r: 0xAA'u8, g: 0x00'u8, b: 0xAA'u8), # magenta #5
+    Color(r: 0xAA'u8, g: 0x55'u8, b: 0x00'u8), # yellow, brown #20
+    Color(r: 0xAA'u8, g: 0xAA'u8, b: 0xAA'u8), # white, light gray #7
+    Color(r: 0x55'u8, g: 0x55'u8, b: 0x55'u8), # dark gray, bright black #56
+    Color(r: 0x55'u8, g: 0x55'u8, b: 0xFF'u8), # bright blue #57
+    Color(r: 0x55'u8, g: 0xFF'u8, b: 0x55'u8), # bright green #58
+    Color(r: 0x55'u8, g: 0xFF'u8, b: 0xFF'u8), # bright cyan #59
+    Color(r: 0xFF'u8, g: 0x55'u8, b: 0x55'u8), # bright red #60
+    Color(r: 0xFF'u8, g: 0x55'u8, b: 0xFF'u8), # bright magenta #61
+    Color(r: 0xFF'u8, g: 0xFF'u8, b: 0x55'u8), # bright yellow #62
+    Color(r: 0xFF'u8, g: 0xFF'u8, b: 0xFF'u8), # bright white #63
 ]

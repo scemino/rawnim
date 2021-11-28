@@ -35,9 +35,9 @@ const restartPos: array[36 * 2, int] = [
 proc getGameTitle*(lang: Language): string =
     if lang == American: GameTitleUs else: GameTitleFr
 
-proc newEngine*(partNum: int, datapath: string, lang: Language) : Engine =
+proc newEngine*(partNum: int, datapath: string, lang: Language, ega: bool) : Engine =
     var res = newResource(datapath)
-    var video = newVideo(lang)
+    var video = newVideo(lang, ega)
     var mix = new(Mixer)
     var script = newScript(mix, res, video, lang)
     result = Engine(vid: video, partNum: partNum, res: res, script: script, mix: mix, lang: lang)
