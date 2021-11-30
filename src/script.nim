@@ -12,6 +12,7 @@ import point
 import mixer
 import staticres
 import lang
+import datatype
 
 type
     ScriptVars = enum
@@ -48,11 +49,12 @@ proc init*(self: var Script) =
     # these 3 variables are set by the game code
     self.scriptVars[0xBC] = 0x10
     self.scriptVars[0xC6] = 0x80
-    self.scriptVars[0xF2] = 4000
+    self.scriptVars[0xF2] = if self.res.dataType == DT_AMIGA or self.res.dataType == DT_ATARI: 6000 else: 4000
     # these 2 variables are set by the engine executable
     self.scriptVars[0xDC] = 33
 #endif
-    self.scriptVars[0xE4] = 20
+    if self.res.dataType == DT_DOS:
+        self.scriptVars[0xE4] = 20
 
 proc updateInput*(self: var Script) =
     self.sys.processEvents()
@@ -76,7 +78,8 @@ proc updateInput*(self: var Script) =
         ud = -1
         jd = -1
         m = m or 8 # jump
-    self.scriptVars[svHeroPosUpDown.int] = ud
+    if self.res.dataType != DT_AMIGA and self.res.dataType != DT_ATARI:
+        self.scriptVars[svHeroPosUpDown.int] = ud
     self.scriptVars[svHeroPosJumpDown.int] = jd
     self.scriptVars[svHeroPosLeftRight.int] = lr
     self.scriptVars[svHeroPosMask.int] = m
@@ -429,7 +432,7 @@ const
 
 proc restartAt*(self: var Script, part, pos: int = -1) =
     self.mix.stopAll()
-    if part == kPartCopyProtection.int:
+    if self.res.dataType == DT_DOS and part == kPartCopyProtection.int:
         # VAR(0x54) indicates if the "Out of this World" title screen should be presented
         #
         #   0084: jmpIf(VAR(0x54) < 128, @00C4)

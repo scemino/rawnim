@@ -1,8 +1,10 @@
-import std/[logging, os, streams, strformat]
+import std/[logging, options, os, streams, strformat]
 import util
 import unpack
 import ptrmath
 import video
+import staticres
+import datatype
 
 const
     EntriesCount = 146
@@ -44,6 +46,9 @@ type
         memPtr: seq[byte]
         useSegVideo2*: bool
         segVideoPal*, segCode*, segVideo1*, segVideo2*: ptr byte
+        dataType*: DataType
+        amigaMemList: AmigaMemEntries
+        numMemList: int
     ResourceRef* = ref Resource
     ResType = enum
         RT_SOUND = 0,
@@ -54,9 +59,46 @@ type
         RT_SHAPE = 5,
         RT_BANK = 6, # common part shapes (bank2.mat)
 
+proc getBankName(self: Resource, bankNum: byte): string =
+    # HACK: don't know why joinPath does not work here
+    result = &"{self.datapath}{DirSep}bank{bankNum:02X}"
+
+proc detectAmigaAtari(self: Resource, stream: var Stream): Option[AmigaMemEntries] =
+    const entries = [
+        (size: 244674, mem: memListAmigaFr),
+        (size: 244868, mem: memListAmigaEn),
+        (size: 227142, mem: memListAtariEn),
+    ]
+    let path = self.getBankName(1)
+    if fileExists(path):
+        let size = getFileSize(path)
+        for entry in entries:
+            if entry.size == size:
+                return some(entry.mem)
+    return none(AmigaMemEntries)
+
+proc getMemListPath(self: Resource): string =
+    result = &"{self.datapath}{DirSep}memlist.bin"
+
+proc detectVersion(self: Resource) =
+    if fileExists(self.getMemListPath()):
+        self.dataType = DT_DOS;
+        debug(DBG_INFO, "Using DOS data files")
+    else:
+        var stream: Stream
+        var memList = self.detectAmigaAtari(stream)
+        if memList.isSome:
+            self.dataType = if memList.get() == memListAtariEn: DT_ATARI else: DT_AMIGA
+            self.amigaMemList = memList.get()
+            if self.dataType == DT_AMIGA:
+                debug(DBG_INFO, "Using Amiga data files")
+            else:
+                debug(DBG_INFO, "Using Atari data files")
+
 proc newResource*(datapath: string): Resource =
     result = new(Resource)
     result.datapath = datapath
+    result.detectVersion()
 
 proc allocMemBlock*(self: Resource) =
     self.memPtr = newSeq[byte](MemBlockSize)
@@ -67,33 +109,42 @@ proc allocMemBlock*(self: Resource) =
     self.vidBakPtr = self.vidCurPtr
     self.useSegVideo2 = false
 
-proc getBankName(self: Resource, bankNum: byte): string =
-    # HACK: don't know why joinPath does not work here
-    result = &"{self.datapath}{DirSep}bank{bankNum:02X}"
-
-proc getMemListPath(self: Resource): string =
-    result = &"{self.datapath}{DirSep}memlist.bin"
+proc readEntriesAmiga(self: Resource, entries: AmigaMemEntries) =
+    for i in 0..<entries.len:
+        self.memList[i].entryType = entries[i].entryType
+        self.memList[i].bankNum = entries[i].bank
+        self.memList[i].bankPos = entries[i].offset
+        self.memList[i].packedSize = entries[i].packedSize
+        self.memList[i].unpackedSize = entries[i].unpackedSize
+    self.memList[entries.len].status = 0xFF
+    self.numMemList = entries.len
 
 proc readEntries*(self: Resource) =
-    let path = self.getMemListPath()
-    if not fileExists(path):
-        quit &"File {path} does not exit"
-    var f = openFileStream(path)
-    for i in 0..EntriesCount:
-        self.memList[i].status = f.readUint8()
-        self.memList[i].entryType = f.readUint8()
-        discard f.readUint32BE()
-        self.memList[i].rankNum = f.readUint8()
-        self.memList[i].bankNum = f.readUint8()
-        self.memList[i].bankPos = f.readUint32BE()
-        self.memList[i].packedSize = f.readUint32BE()
-        self.memList[i].unpackedSize = f.readUint32BE()
-        if self.memList[i].status == 0xFF:
-            const num = memListParts[8][1] # 16008 bytecode
-            let bank = self.getBankName(self.memList[num].bankNum)
-            self.hasPasswordScreen = fileExists(bank)
-            break
-    f.close()
+    case self.dataType:
+    of DT_DOS:
+        let path = self.getMemListPath()
+        if not fileExists(path):
+            quit &"File {path} does not exit"
+        var f = openFileStream(path)
+        for i in 0..EntriesCount:
+            self.memList[i].status = f.readUint8()
+            self.memList[i].entryType = f.readUint8()
+            discard f.readUint32BE()
+            self.memList[i].rankNum = f.readUint8()
+            self.memList[i].bankNum = f.readUint8()
+            self.memList[i].bankPos = f.readUint32BE()
+            self.memList[i].packedSize = f.readUint32BE()
+            self.memList[i].unpackedSize = f.readUint32BE()
+            if self.memList[i].status == 0xFF:
+                const num = memListParts[8][1] # 16008 bytecode
+                let bank = self.getBankName(self.memList[num].bankNum)
+                self.hasPasswordScreen = fileExists(bank)
+                break
+            inc self.numMemList
+        f.close()
+    of DT_AMIGA, DT_ATARI:
+        self.hasPasswordScreen = true
+        self.readEntriesAmiga(self.amigaMemList)
 
 proc readBank(self: Resource, me: MemEntry, dstBuf: ptr byte): bool =
     result = false
@@ -106,7 +157,7 @@ proc readBank(self: Resource, me: MemEntry, dstBuf: ptr byte): bool =
         if result and me.packedSize != me.unpackedSize:
             result = bytekiller_unpack(dstBuf, me.unpackedSize.int, dstBuf, me.packedSize.int)
     else:
-        debug(DBG_BANK, "File {bank} DOESN'T exits")
+        debug(DBG_BANK, &"File {bank} DOESN'T exits")
 
 proc dumpFile(filename: string, p: seq[byte], size: int) =
     createDir "DUMP"
@@ -116,9 +167,11 @@ proc dumpFile(filename: string, p: seq[byte], size: int) =
     fp.close()
 
 proc dumpEntries*(self: Resource) =
-    for i in 0..<self.memList.len:
-        if self.memList[i].unpackedSize == 0:
+    for i in 0..<self.numMemList:
+        if self.memList[i].unpackedSize != 0:
             continue
+        if self.memList[i].bankNum == 5 and (self.dataType == DT_AMIGA or self.dataType == DT_ATARI):
+            continue;
         var p = newSeq[byte](self.memList[i].unpackedSize)
         let name = &"data_{i:02x}_{self.memList[i].entryType}"
         if self.readBank(self.memList[i], addr p[0]):
@@ -128,15 +181,15 @@ proc dumpEntries*(self: Resource) =
             debug &"{name} read failed"
 
 proc invalidateRes*(self: Resource) =
-    for i in 0..<self.memList.len:
-        var me = self.memList[i]
+    for i in 0..<self.numMemList:
+        var me = addr self.memList[i]
         if (me.entryType <= 2 or me.entryType > 6):
             me.status = STATUS_NULL
     self.scriptCurPtr = self.scriptBakPtr
     self.vid.currentPal = 0xFF
 
 proc invalidateAll(self: Resource) =
-    for i in 0..<self.memList.len:
+    for i in 0..<self.numMemList:
         self.memList[i].status = STATUS_NULL
     self.scriptCurPtr = self.memPtrStart
 
@@ -147,7 +200,7 @@ proc load(self: Resource) =
         # get resource with max rankNum
         var maxNum = 0.byte
         var resourceNum = 0
-        for i in 0..<self.memList.len:
+        for i in 0..<self.numMemList:
             var it = addr self.memList[i]
             if it.status == STATUS_TOLOAD and maxNum <= it.rankNum:
                 maxNum = it.rankNum
@@ -181,7 +234,7 @@ proc load(self: Resource) =
                     me.status = STATUS_LOADED
                     self.scriptCurPtr += me.unpackedSize.int
             else:
-                if me.bankNum == 12 and me.entryType == RT_BANK.byte:
+                if self.dataType == DT_DOS and me.bankNum == 12 and me.entryType == RT_BANK.byte:
                     # DOS demo version does not have the bank for this resource
                     # this should be safe to ignore as the resource does not appear to be used by the game code
                     me.status = STATUS_NULL

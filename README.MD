@@ -6,6 +6,8 @@ Another World/Out of This World engine reimplementation written in pure nim.
 
 The program requires the original data files.
 
+* Amiga (Bank*)
+* Atari (Bank*)
 * DOS (Bank*, memlist.bin)
 
 # Usage

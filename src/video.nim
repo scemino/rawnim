@@ -10,6 +10,7 @@ import quadstrip
 import staticres
 import tables
 import lang
+import datatype
 
 const 
     BITMAP_W = 320
@@ -27,9 +28,10 @@ type
         tempBitmap: seq[byte]
         lang: Language
         useEGA: bool
+        dataType: DataType
     
-proc newVideo*(lang: Language, ega: bool): Video =
-    result = Video(tempBitmap: newSeq[byte](BITMAP_W * BITMAP_H), lang: lang, useEGA: ega)
+proc newVideo*(lang: Language, ega: bool, dataType: DataType): Video =
+    result = Video(tempBitmap: newSeq[byte](BITMAP_W * BITMAP_H), lang: lang, useEGA: ega, dataType: dataType)
 
 proc decode_amiga(source: ptr byte, dest: ptr byte) =
     var src = source
@@ -46,6 +48,21 @@ proc decode_amiga(source: ptr byte, dest: ptr byte) =
                 dst[] = color.byte
                 dst += 1
             src += 1
+
+proc decode_atari(source: ptr byte, dest: ptr byte) =
+    var src = source
+    var dst = dest
+    for y in 0..<200:
+        for x in countup(0, 320-1, 8):
+            for b in 0..<16:
+                let mask = 1 shl (15 - b)
+                var color = 0;
+                for p in 0..<4:
+                    if (READ_BE_UINT16(src + p * 2) and mask.uint16) != 0:
+                        color = color or 1 shl p
+                dst[] = color.byte
+                dst += 1
+            src += 8
 
 proc scaleBitmap(self: Video, src: ptr byte, fmt: GraphicsFormat) =
     self.graphics.drawBitmap(0, src, BITMAP_W, BITMAP_H, fmt)
@@ -78,7 +95,11 @@ proc init*(self: Video) =
     self.pData.byteSwap = false
 
 proc copyBitmapPtr*(self: Video, src: ptr byte, size: uint32 = 0) =
-    decode_amiga(src, self.tempBitmap[0].unsafeAddr)
+    case self.dataType:
+    of DT_DOS, DT_AMIGA:
+        decode_amiga(src, self.tempBitmap[0].unsafeAddr)
+    of DT_ATARI:
+        decode_atari(src, self.tempBitmap[0].unsafeAddr)
     self.scaleBitmap(self.tempBitmap[0].addr, FMT_CLUT)
 
 proc setDataBuffer*(self: Video, dataBuf: ptr byte, offset: uint16) =
@@ -227,7 +248,7 @@ proc readPaletteEGA(buf: ptr byte, num: int, pal: var array[16, Color]) =
 proc changePal*(self: Video, segVideoPal: ptr byte, palNum: byte) =
     if palNum < 32 and palNum != self.currentPal:
         var pal : array[16, Color]
-        if self.useEGA:
+        if self.dataType == DT_DOS and self.useEGA:
             readPaletteEGA(segVideoPal, palNum.int, pal)
         else:
             readPaletteAmiga(segVideoPal, palNum.int, pal)

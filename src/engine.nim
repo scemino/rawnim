@@ -37,7 +37,7 @@ proc getGameTitle*(lang: Language): string =
 
 proc newEngine*(partNum: int, datapath: string, lang: Language, ega: bool) : Engine =
     var res = newResource(datapath)
-    var video = newVideo(lang, ega)
+    var video = newVideo(lang, ega, res.dataType)
     var mix = new(Mixer)
     var script = newScript(mix, res, video, lang)
     result = Engine(vid: video, partNum: partNum, res: res, script: script, mix: mix, lang: lang)
