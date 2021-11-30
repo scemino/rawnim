@@ -145,7 +145,7 @@ const stringsTableFr* = {
      0xFFFF'u16: ""
 }.toTable
 
-var stringsTableEng* = {
+const stringsTableEng* = {
      0x001'u16: "P E A N U T  3000" ,
      0x002'u16: "Copyright  } 1990 Peanut Computer, Inc.\nAll rights reserved.\n\nCDOS Version 5.01" ,
      0x003'u16: "2" ,
@@ -287,6 +287,17 @@ var stringsTableEng* = {
      0x194'u16: "Y\n" ,
      0x193'u16: "AU BOULOT !!!\n" ,
      0xFFFF'u16: ""
+}.toTable
+
+const stringsTableDemo* = {
+    0x1F4'u16: "Over Two Years in the Making",
+    0x1F5'u16: "   A New, State\nof the Art, Polygon\n  Graphics System",
+    0x1F6'u16: "   Comes to the\nComputer With Full\n Screen Graphics",
+    0x1F7'u16: "While conducting a nuclear fission\nexperiment at your local\nparticle accelerator ...",
+    0x1F8'u16: "Nature decides to put a little\n    extra spin on the ball",
+    0x1F9'u16: "And sends you ..." ,
+    0x1FA'u16: "     Out of this World\nA Cinematic Action Adventure\n from Interplay Productions\n                    \n       By Eric CHAHI      \n\n  IBM version : D.MORAIS\n",
+    0xFFFF'u16: ""
 }.toTable
 
 const font*: array[768, byte] = [

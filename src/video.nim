@@ -97,9 +97,9 @@ proc init*(self: Video) =
 proc copyBitmapPtr*(self: Video, src: ptr byte, size: uint32 = 0) =
     case self.dataType:
     of DT_DOS, DT_AMIGA:
-        decode_amiga(src, self.tempBitmap[0].unsafeAddr)
+        decode_amiga(src, self.tempBitmap[0].addr)
     of DT_ATARI:
-        decode_atari(src, self.tempBitmap[0].unsafeAddr)
+        decode_atari(src, self.tempBitmap[0].addr)
     self.scaleBitmap(self.tempBitmap[0].addr, FMT_CLUT)
 
 proc setDataBuffer*(self: Video, dataBuf: ptr byte, offset: uint16) =
@@ -183,7 +183,11 @@ proc drawString*(self: Video, color: byte, xx, yy, strId: uint16) =
     var x = xx
     var y = yy
     var escapedChars = false
-    var str = stringsTable(self.lang)[strId]
+    var str: string
+    if stringsTable(self.lang).contains(strId):
+        str = stringsTable(self.lang)[strId]
+    else:
+        str = stringsTableDemo[strId]
     debug(DBG_VIDEO, &"drawString({color}, {x}, {y}, '{str}')")
     var xx = x.uint16
     var len = str.len

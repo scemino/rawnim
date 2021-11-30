@@ -9,6 +9,7 @@ The program requires the original data files.
 * Amiga (Bank*)
 * Atari (Bank*)
 * DOS (Bank*, memlist.bin)
+* DOS demo (Demo*, memlist.bin)
 
 # Usage
 
@@ -20,6 +21,7 @@ The program requires the original data files.
     --language=lang, -l:lang   Language (fr,us,de,es,it)
     --part=num,      -p:num    Game part to start from (0-35 or 16001-16009)
     --ega            -e        Use EGA palette
+    --demo3-joy      -j        Use inputs from 'demo3.joy' (DOS demo)
 
 In game hotkeys :
 

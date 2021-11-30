@@ -89,6 +89,22 @@ proc updateInput*(self: var Script) =
         m = m or 0x80
     self.scriptVars[svHeroAction.int] = action
     self.scriptVars[svHeroActionPosMask.int] = m
+    if self.res.currentPart == kPartWater.uint16:
+        let mask = self.res.demo3Joy.update()
+        if mask != 0:
+            self.scriptVars[svHeroActionPosMask.int] = mask.int16
+            self.scriptVars[svHeroPosMask.int] = (mask and 15).int16
+            self.scriptVars[svHeroPosLeftRight.int] = 0
+            if (mask and 1) != 0:
+                self.scriptVars[svHeroPosLeftRight.int] = 1
+            if (mask and 2) != 0:
+                self.scriptVars[svHeroPosLeftRight.int] = -1
+            self.scriptVars[svHeroPosJumpDown.int] = 0
+            if (mask and 4) != 0:
+                self.scriptVars[svHeroPosJumpDown.int] = 1
+            if (mask and 8) != 0:
+                self.scriptVars[svHeroPosJumpDown.int] = -1
+            self.scriptVars[svHeroAction.int] = (mask shr 7).int16
 
 proc inp_handleSpecialKeys*(self: var Script) =
     if self.sys.pi.pause:
@@ -454,9 +470,9 @@ proc restartAt*(self: var Script, part, pos: int = -1) =
         self.scriptVars[0] = cast[int16](pos)
     self.startTime = self.sys.getTimeStamp()
     self.timeStamp = self.startTime
-    # TODO: if part == kPartWater.int:
-    #     if self.res.demo3Joy.start():
-    #         self.scriptVars.fill(0)
+    if part == kPartWater.int:
+        if self.res.demo3Joy.start():
+            self.scriptVars.fill(0)
 
 proc setupTasks*(self: var Script) =
     if self.res.nextPart != 0:

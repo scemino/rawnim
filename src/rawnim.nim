@@ -4,6 +4,8 @@ import util
 import system
 import graphics
 import lang
+import resource
+import dataType
 
 type
   Settings = object
@@ -11,6 +13,7 @@ type
     lang: Language
     part: int
     ega: bool
+    demoJoy: bool
 
 const
   Usage = """
@@ -25,6 +28,7 @@ Options:
   --language=lang, -l:lang   Language (fr,us,de,es,it)
   --part=num,      -p:num    Game part to start from (0-35 or 16001-16009)
   --ega            -e        Use EGA palette
+  --demo3-joy      -j        Use inputs from 'demo3.joy' (DOS demo)
 """
 
 proc runGame(settings: Settings) =
@@ -33,6 +37,8 @@ proc runGame(settings: Settings) =
   sys.init(getGameTitle(settings.lang))
   var e = newEngine(settings.part, settings.datapath, settings.lang, settings.ega)
   e.setSystem(sys, gfx)
+  if settings.demoJoy and e.res.dataType == DT_DOS:
+    e.res.readDemo3Joy()
   e.setup()
   while true:
     e.run()
@@ -74,6 +80,8 @@ proc parseGameOptions(): Settings =
         settings.part = parseInt(val)
       of "e", "ega":
         settings.ega = true
+      of "j", "demo3-joy":
+        settings.demoJoy = true
     of cmdArgument:
       writeHelp()
   

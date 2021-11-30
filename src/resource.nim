@@ -8,7 +8,7 @@ import datatype
 
 const
     EntriesCount = 146
-    MemBlockSize = 1 * 1024 * 1024
+    MemBlockSize = 1024 * 1024
     memListParts = [
         [ 0x14, 0x15, 0x16, 0x00 ], # 16000 - protection screens
         [ 0x17, 0x18, 0x19, 0x00 ], # 16001 - introduction
@@ -37,7 +37,7 @@ type
         unpackedSize: uint32  # 0x12
     Resource* = ref ResourceObj
     ResourceObj* = object
-        vid: Video
+        vid*: Video
         datapath: string
         memList*: array[EntriesCount+1, MemEntry]
         hasPasswordScreen*: bool
@@ -49,6 +49,8 @@ type
         dataType*: DataType
         amigaMemList: AmigaMemEntries
         numMemList: int
+        bankPrefix: string
+        demo3Joy*: DemoJoy
     ResourceRef* = ref Resource
     ResType = enum
         RT_SOUND = 0,
@@ -58,10 +60,34 @@ type
         RT_BYTECODE = 4,
         RT_SHAPE = 5,
         RT_BANK = 6, # common part shapes (bank2.mat)
+    DemoJoy* = object
+        keymask: byte
+        counter: byte
+        bufPtr: seq[byte]
+        bufPos, bufSize: int
+
+proc start*(self: var DemoJoy): bool =
+    if self.bufSize > 0:
+        self.keymask = self.bufPtr[0];
+        self.counter = self.bufPtr[1];
+        self.bufPos = 2
+        result = true;
+    result = false
+
+proc update*(self: var DemoJoy): byte =
+    if self.bufPos >= 0 and self.bufPos < self.bufSize:
+        if self.counter == 0:
+            self.keymask = self.bufPtr[self.bufPos]
+            self.counter = self.bufPtr[self.bufPos + 1]
+            self.bufPos += 2
+        else:
+            dec self.counter
+        return self.keymask
+    return 0;
 
 proc getBankName(self: Resource, bankNum: byte): string =
     # HACK: don't know why joinPath does not work here
-    result = &"{self.datapath}{DirSep}bank{bankNum:02X}"
+    result = &"{self.datapath}{DirSep}{self.bankPrefix}{bankNum:02X}"
 
 proc detectAmigaAtari(self: Resource, stream: var Stream): Option[AmigaMemEntries] =
     const entries = [
@@ -79,6 +105,12 @@ proc detectAmigaAtari(self: Resource, stream: var Stream): Option[AmigaMemEntrie
 
 proc getMemListPath(self: Resource): string =
     result = &"{self.datapath}{DirSep}memlist.bin"
+
+proc getDemoPath(self: Resource): string =
+    result = &"{self.datapath}{DirSep}demo01"
+
+proc getDemoJoyPath(self: Resource): string =
+    result = &"{self.datapath}{DirSep}demo3.joy"
 
 proc detectVersion(self: Resource) =
     if fileExists(self.getMemListPath()):
@@ -98,6 +130,7 @@ proc detectVersion(self: Resource) =
 proc newResource*(datapath: string): Resource =
     result = new(Resource)
     result.datapath = datapath
+    result.bankPrefix = "bank"
     result.detectVersion()
 
 proc allocMemBlock*(self: Resource) =
@@ -122,6 +155,8 @@ proc readEntriesAmiga(self: Resource, entries: AmigaMemEntries) =
 proc readEntries*(self: Resource) =
     case self.dataType:
     of DT_DOS:
+        if fileExists(self.getDemoPath()):
+            self.bankPrefix = "demo"
         let path = self.getMemListPath()
         if not fileExists(path):
             quit &"File {path} does not exit"
@@ -224,7 +259,7 @@ proc load(self: Resource) =
             me.status = STATUS_NULL
         else:
             let bufPos = cast[int](memPtr) - cast[int](self.memPtrStart)
-            debug(DBG_BANK, &"Resource::load() bufPos=0x{bufPos:0X} size={me.packedSize} type={me.entryType} pos=0x{me.bankPos:X} bankNum={me.bankNum}")
+            debug(DBG_BANK, &"Resource::load() bufPos=0x{bufPos:0X} size={me.packedSize}/unpackedSize={me.unpackedSize} type={me.entryType} pos=0x{me.bankPos:X} bankNum={me.bankNum}")
             if self.readBank(me[], memPtr):
                 if me.entryType == RT_BITMAP.byte:
                     self.vid.copyBitmapPtr(self.vidCurPtr, me.unpackedSize)
@@ -274,10 +309,20 @@ proc setupPart*(self: Resource, ptrId: int) =
 proc update*(self: Resource, num: uint16) =
     if num > 16000:
         self.nextPart = num
-        return
-    if self.memList[num].status == STATUS_NULL:
+    elif self.memList[num].status == STATUS_NULL:
         self.memList[num].status = STATUS_TOLOAD
         self.load()
+
+proc readDemo3Joy*(self: Resource) =
+    let path = self.getDemoJoyPath()
+    if fileExists(path):
+        var f = openFileStream(path)
+        let fileSize = getFileSize(path)
+        self.demo3Joy.bufPtr = newSeq[byte](fileSize)
+        self.demo3Joy.bufSize = f.readData(addr self.demo3Joy.bufPtr[0], fileSize.int)
+        self.demo3Joy.bufPos = -1
+    else:
+        warn &"Unable to open '{path}'"
 
 when isMainModule:
   addHandler newConsoleLogger()
