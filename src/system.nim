@@ -204,9 +204,9 @@ proc processEvents*(self: System) =
                 let pressed = ev.cbutton.state == 1
                 case ev.cbutton.button:
                 of SDL_CONTROLLER_BUTTON_GUIDE:
-                    self.pi.code = pressed;
+                    self.pi.code = pressed
                 of SDL_CONTROLLER_BUTTON_START:
-                    self.pi.pause = pressed;
+                    self.pi.pause = pressed
                 of SDL_CONTROLLER_BUTTON_DPAD_UP:
                     if pressed:
                         self.pi.dirMask.incl DIR_UP

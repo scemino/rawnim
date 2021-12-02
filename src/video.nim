@@ -56,7 +56,7 @@ proc decode_atari(source: ptr byte, dest: ptr byte) =
         for x in countup(0, 320-1, 8):
             for b in 0..<16:
                 let mask = 1 shl (15 - b)
-                var color = 0;
+                var color = 0
                 for p in 0..<4:
                     if (READ_BE_UINT16(src + p * 2) and mask.uint16) != 0:
                         color = color or 1 shl p
@@ -121,7 +121,8 @@ proc fillPolygon(self: Video, color, zoom: uint16, pt: Point) =
         return
 
     var qs: QuadStrip
-    qs.numVertices = p[]; p += 1
+    qs.numVertices = p[]
+    p += 1
     if (qs.numVertices and 1) != 0:
         warn &"Unexpected number of vertices {qs.numVertices}"
         return
@@ -197,12 +198,12 @@ proc drawString*(self: Video, color: byte, xx, yy, strId: uint16) =
             y += 8
             x = xx
         elif str[i] == '\\' and escapedChars:
-            i += 1
+            inc i
             if i < len:
                 case str[i]:
                 of 'n':
-                    y += 8;
-                    x = xx;
+                    y += 8
+                    x = xx
                 else:
                     discard
         else:

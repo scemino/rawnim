@@ -11,3 +11,4 @@ bin           = @["rawnim"]
 # Dependencies
 
 requires "nim >= 1.6.0"
+requires "sdl2 >= 2.0.3"

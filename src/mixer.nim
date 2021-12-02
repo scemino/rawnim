@@ -1,13 +1,14 @@
-import std/[strformat, logging]
+import std/[strformat, logging, math]
 import util
 import sdl2
 import sdl2/audio
 import sdl2/mixer
 import scriptptr
 import ptrmath
+import frac
+import sfxplayer
 
 const
-    BITS = 16
     kMixFreq = 44100
     kMixBufSize = 4096
     kMixChannels = 4
@@ -15,15 +16,12 @@ const
 type
     Mixer* = ref MixerObj
     MixerObj* = object
+        sfx*: SfxPlayer
         cvt: AudioCVT
         sounds: array[kMixChannels, ptr Chunk]
         samples: array[kMixChannels, ptr byte]
-    Frac = object
-        inc: uint32
-        offset: uint64
 
-proc getInt(self: Frac): int =
-    self.offset.int shr BITS
+var s8buf = cast[ptr int8](allocShared[int8](8192))
 
 proc convertMono8(cvt: var AudioCVT, data: ptr byte, freq, size: int, cvtLen: var int) : ptr byte =
     let kHz = 11025
@@ -47,13 +45,35 @@ proc convertMono8(cvt: var AudioCVT, data: ptr byte, freq, size: int, cvtLen: va
     cvtLen = cvt.len_cvt
     result = output
 
-proc init*(self:var Mixer) =
+proc init*(self: var Mixer) =
     discard mixer.init(MIX_INIT_FLUIDSYNTH.cint)
     if openAudio(kMixFreq, AUDIO_S16.uint16, 2, kMixBufSize.cint) < 0:
-        warn(&"Mix_OpenAudio failed: {getError()}")
+        warn(&"openAudio failed: {getError()}")
     discard allocateChannels(kMixChannels.cint)
     if buildAudioCVT(self.cvt.addr, AUDIO_S8, 1, 11025, AUDIO_S16.uint16, 2, kMixFreq) < 0:
-        warn(&"SDL_BuildAudioCVT failed: {getError()}")
+        warn(&"buildAudioCVT failed: {getError()}")
+
+proc stopSfxMusic*(self: Mixer) =
+    debug(DBG_SND, "Mixer::stopSfxMusic()")
+    self.sfx.stop()
+    hookMusic(nil, nil)
+
+proc mixSfxPlayer(data: pointer, rawStream: ptr uint8, l: cint) {.cdecl.} =
+    setupForeignThreadGc()
+    echo "mixSfxPlayer, count=", l
+    let 
+        stream = cast[ptr UncheckedArray[int16]](rawStream)
+        count = l div 2 # bytes -> samples
+    let mixer = cast[ptr Mixer](data)
+    mixer.sfx.readSamples(s8buf, count)
+    for i in 0..<count:
+        stream[i] = 256 * cast[int16](s8buf[i])
+
+proc playSfxMusic*(self: var Mixer, num: int) =
+    debug(DBG_SND, &"Mixer::playSfxMusic({num})")
+    self.stopSfxMusic()
+    self.sfx.play(kMixFreq)
+    hookMusic(mixSfxPlayer, addr self)
 
 proc freeSound(self: Mixer, channel: int) =
     freeChunk(self.sounds[channel])
@@ -74,8 +94,7 @@ proc stopSound*(self: var Mixer, channel: int) =
 proc stopAll*(self: var Mixer) =
     for i in 0..<4:
         self.stopSound(i)
-        #stopMusic()
-        #stopSfxMusic()
+    self.stopSfxMusic()
 
 proc setChannelVolume(channel, vol: int) =
     discard volume(channel.cint, (vol * MIX_MAX_VOLUME div 63).cint)
