@@ -5,7 +5,7 @@ import system
 import graphics
 import lang
 import resource
-import dataType
+import datatype
 
 type
   Settings = object
