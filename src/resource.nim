@@ -28,7 +28,7 @@ const
 type
     MemEntry = object
         status*: byte          # 0x0
-        entryType: byte       # 0x1, Resource::ResType
+        entryType*: byte       # 0x1, Resource::ResType
         bufPtr*: ptr byte      # 0x2
         rankNum: byte         # 0x6
         bankNum: byte         # 0x7
@@ -68,10 +68,10 @@ type
 
 proc start*(self: var DemoJoy): bool =
     if self.bufSize > 0:
-        self.keymask = self.bufPtr[0];
-        self.counter = self.bufPtr[1];
+        self.keymask = self.bufPtr[0]
+        self.counter = self.bufPtr[1]
         self.bufPos = 2
-        result = true;
+        result = true
     result = false
 
 proc update*(self: var DemoJoy): byte =
@@ -83,7 +83,7 @@ proc update*(self: var DemoJoy): byte =
         else:
             dec self.counter
         return self.keymask
-    return 0;
+    return 0
 
 proc getBankName(self: Resource, bankNum: byte): string =
     # HACK: don't know why joinPath does not work here
@@ -114,7 +114,7 @@ proc getDemoJoyPath(self: Resource): string =
 
 proc detectVersion(self: Resource) =
     if fileExists(self.getMemListPath()):
-        self.dataType = DT_DOS;
+        self.dataType = DT_DOS
         debug(DBG_INFO, "Using DOS data files")
     else:
         var stream: Stream
@@ -206,7 +206,7 @@ proc dumpEntries*(self: Resource) =
         if self.memList[i].unpackedSize != 0:
             continue
         if self.memList[i].bankNum == 5 and (self.dataType == DT_AMIGA or self.dataType == DT_ATARI):
-            continue;
+            continue
         var p = newSeq[byte](self.memList[i].unpackedSize)
         let name = &"data_{i:02x}_{self.memList[i].entryType}"
         if self.readBank(self.memList[i], addr p[0]):

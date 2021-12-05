@@ -5,10 +5,21 @@ import graphics
 import system
 import mixer
 import lang
+import sfxplayer
 
 const
     GameTitleFr = "Another World"
     GameTitleUs = "Out Of This World"
+    restartPos: array[36 * 2, int] = [
+        16008,  0, 16001,  0, 16002, 10, 16002, 12, 16002, 14,
+        16003, 20, 16003, 24, 16003, 26, 16004, 30, 16004, 31,
+        16004, 32, 16004, 33, 16004, 34, 16004, 35, 16004, 36,
+        16004, 37, 16004, 38, 16004, 39, 16004, 40, 16004, 41,
+        16004, 42, 16004, 43, 16004, 44, 16004, 45, 16004, 46,
+        16004, 47, 16004, 48, 16004, 49, 16006, 64, 16006, 65,
+        16006, 66, 16006, 67, 16006, 68, 16005, 50, 16006, 60,
+        16007, 0
+    ]
 
 type
     Engine* = object
@@ -21,17 +32,6 @@ type
         partNum: int
         lang: Language
 
-const restartPos: array[36 * 2, int] = [
-        16008,  0, 16001,  0, 16002, 10, 16002, 12, 16002, 14,
-        16003, 20, 16003, 24, 16003, 26, 16004, 30, 16004, 31,
-        16004, 32, 16004, 33, 16004, 34, 16004, 35, 16004, 36,
-        16004, 37, 16004, 38, 16004, 39, 16004, 40, 16004, 41,
-        16004, 42, 16004, 43, 16004, 44, 16004, 45, 16004, 46,
-        16004, 47, 16004, 48, 16004, 49, 16006, 64, 16006, 65,
-        16006, 66, 16006, 67, 16006, 68, 16005, 50, 16006, 60,
-        16007, 0
-    ]
-
 proc getGameTitle*(lang: Language): string =
     if lang == American: GameTitleUs else: GameTitleFr
 
@@ -39,8 +39,12 @@ proc newEngine*(partNum: int, datapath: string, lang: Language, ega: bool) : Eng
     var res = newResource(datapath)
     var video = newVideo(lang, ega, res.dataType)
     res.vid = video
+    var ply = new (SfxPlayer)
+    ply.res = res
     var mix = new(Mixer)
+    mix.sfx = ply
     var script = newScript(mix, res, video, lang)
+    script.ply = ply
     result = Engine(vid: video, partNum: partNum, res: res, script: script, mix: mix, lang: lang)
 
 proc setSystem*(self: var Engine, sys: System, graphics: Graphics) =
@@ -59,7 +63,7 @@ proc setup*(self: var Engine) =
     #self.res.dumpEntries()
     self.graphics.init(w, h)
     self.script.init()
-    self.mix.init();
+    self.mix.init()
     let num = self.partNum
     if num < 36:
         self.script.restartAt(restartPos[num * 2], restartPos[num * 2 + 1])

@@ -13,6 +13,7 @@ import mixer
 import staticres
 import lang
 import datatype
+import sfxplayer
 
 type
     ScriptVars = enum
@@ -23,6 +24,7 @@ type
         vid: Video
         sys*: System
         mix: Mixer
+        ply*: SfxPlayer
         scriptVars: array[256, int16]
         scriptStackCalls: array[64, uint16]
         scriptTasks: Grid[2, 64, uint16]
@@ -41,7 +43,7 @@ proc newScript*(mix: Mixer, res: Resource, vid: Video, lang: Language): Script =
 proc init*(self: var Script) =
     self.scriptVars.fill(0)
     self.fastMode = false
-    #TODO: self.ply.syncVar = &self.scriptVars[svMusicSync.int]
+    self.ply.syncVar = addr self.scriptVars[svMusicSync.int]
     self.scriptPtr.byteSwap = false
     
     self.scriptVars[svRandomSeed.int] = 0 #time(0)
@@ -109,10 +111,10 @@ proc updateInput*(self: var Script) =
 proc inp_handleSpecialKeys*(self: var Script) =
     if self.sys.pi.pause:
         if self.res.currentPart != kPartCopyProtection.uint16 and self.res.currentPart != kPartIntro.uint16:
-            self.sys.pi.pause = false;
+            self.sys.pi.pause = false
             while not self.sys.pi.pause and not self.sys.pi.quit:
                 self.sys.processEvents()
-                self.sys.sleep(50);
+                self.sys.sleep(50)
         self.sys.pi.pause = false
 
     if self.sys.pi.code:
@@ -144,16 +146,23 @@ proc snd_playSound(self: var Script, resNum: uint16, freq, volume, channel: int)
         return
     if vol > 63:
         vol = 63
-    var me = self.res.memList[resNum]
+    var me = addr self.res.memList[resNum]
     if me.status == STATUS_LOADED:
-        assert(freq < 40);
+        assert(freq < 40)
         self.mix.playSoundRaw(channel and 3, me.bufPtr, freqTable[freq], vol)
     else:
-        debug(DBG_SND, &"snd_playSound(0x{resNum:X}, {freq}, {volume}, {channel} -> not loaded")
+        debug(DBG_SND, &"snd_playSound(0x{resNum:X}, {freq}, {volume}, {channel} . not loaded")
 
-proc snd_playMusic(self: Script, resNum, delay: uint16, pos: byte) =
-    # TODO playMusic
-    discard
+proc snd_playMusic(self: var Script, resNum, delay: uint16, pos: byte) =
+    debug(DBG_SND, &"snd_playMusic(0x{resNum:X}, {delay}, {pos})")
+    if resNum != 0:
+        self.ply.loadSfxModule(resNum, delay, pos)
+        self.ply.start()
+        self.mix.playSfxMusic(resNum.int)
+    elif delay != 0:
+        self.ply.setEventsDelay(delay)
+    else:
+        self.mix.stopSfxMusic()
 
 {.push overflowchecks: off.}
 proc op_movConst(self: var Script) =
@@ -414,7 +423,7 @@ proc op_updateResources(self: var Script) =
     var num = self.scriptPtr.fetchWord()
     debug(DBG_SCRIPT, &"Script::op_updateResources({num})")
     if num == 0:
-        #self.ply.stop()
+        self.ply.stop()
         self.mix.stopAll()
         self.res.invalidateRes()
     else:
@@ -447,6 +456,7 @@ const
     ]
 
 proc restartAt*(self: var Script, part, pos: int = -1) =
+    self.ply.stop()
     self.mix.stopAll()
     if self.res.dataType == DT_DOS and part == kPartCopyProtection.int:
         # VAR(0x54) indicates if the "Out of this World" title screen should be presented

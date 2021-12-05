@@ -84,7 +84,7 @@ proc dumpPalette555(dest: ptr uint16,  w: int, pal: array[16, Color]) =
     for y in 0..<SZ:
       for x in 0..<SZ:
         p[x] = pal[color].rgb555()
-      p += w;
+      p += w
     if color == 7:
       dst += SZ * w
 
@@ -96,7 +96,7 @@ proc drawBuffer*(self: Graphics, num: int, sys: System) =
         var src = self.getPagePtr(num.byte)
         for i in 0..<(self.w * self.h):
             self.colorBuffer[i] = self.pal[src[i]].rgb555()
-        #dumpPalette555(addr self.colorBuffer[0], self.w, self.pal);
+        #dumpPalette555(addr self.colorBuffer[0], self.w, self.pal)
         sys.setScreenPixels555(self.colorBuffer[0].addr, self.w, self.h)
     elif self.byteDepth == 2:
         var src = cast[ptr uint16](self.getPagePtr(num.byte))
@@ -178,7 +178,7 @@ proc drawPolygon*(self: Graphics, color: byte, quadStrip: QuadStrip) =
             qs.vertices[i].scale(self.u, self.v)
 
     var i = 0
-    var j = qs.numVertices - 1;
+    var j = qs.numVertices - 1
 
     var x2 = qs.vertices[i].x
     var x1 = qs.vertices[j].x
