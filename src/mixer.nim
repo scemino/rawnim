@@ -1,4 +1,4 @@
-import std/[strformat, logging, math]
+import std/[strformat, logging]
 import util
 import sdl2
 import sdl2/audio
@@ -20,8 +20,8 @@ type
         cvt: AudioCVT
         sounds: array[kMixChannels, ptr Chunk]
         samples: array[kMixChannels, ptr byte]
-
-var s8buf = cast[ptr int8](allocShared[int8](8192))
+        
+var audioBuffer: array[8192, int8]
 
 proc convertMono8(cvt: var AudioCVT, data: ptr byte, freq, size: int, cvtLen: var int) : ptr byte =
     let kHz = 11025
@@ -32,14 +32,15 @@ proc convertMono8(cvt: var AudioCVT, data: ptr byte, freq, size: int, cvtLen: va
     pos.offset = 0
     pos.inc = cast[uint32]((freq shl BITS) div kHz)
     var len = 0
-    while pos.getInt() < size:
-        output[len] = data[pos.getInt()]
-        len += 1
+    while pos.getInt().int < size:
+        output[len] = data[pos.getInt().int]
+        inc len
         pos.offset += pos.inc
     # convert to mixer format
     cvt.len = len.cint
     cvt.buf = output
     if convertAudio(addr cvt) < 0:
+        dealloc(output)
         return nil
     output = cvt.buf
     cvtLen = cvt.len_cvt
@@ -50,24 +51,28 @@ proc init*(self: var Mixer) =
     if openAudio(kMixFreq, AUDIO_S16.uint16, 2, kMixBufSize.cint) < 0:
         warn(&"openAudio failed: {getError()}")
     discard allocateChannels(kMixChannels.cint)
+    zeroMem(addr self.cvt, sizeof(self.cvt))
     if buildAudioCVT(self.cvt.addr, AUDIO_S8, 1, 11025, AUDIO_S16.uint16, 2, kMixFreq) < 0:
         warn(&"buildAudioCVT failed: {getError()}")
+
+proc stopSfxMusicCore() =
+    hookMusic(nil, nil)
 
 proc stopSfxMusic*(self: Mixer) =
     debug(DBG_SND, "Mixer::stopSfxMusic()")
     self.sfx.stop()
-    hookMusic(nil, nil)
+    stopSfxMusicCore()
 
-proc mixSfxPlayer(data: pointer, rawStream: ptr uint8, l: cint) {.cdecl.} =
+proc mixSfxPlayer(data: pointer, rawStream: ptr uint8, len: cint) {.cdecl.} =
     setupForeignThreadGc()
-    echo "mixSfxPlayer, count=", l
     let 
         stream = cast[ptr UncheckedArray[int16]](rawStream)
-        count = l div 2 # bytes -> samples
-    let mixer = cast[ptr Mixer](data)
-    mixer.sfx.readSamples(s8buf, count)
+        count = len div 2 # bytes -> samples
+        mixer = cast[ptr Mixer](data)
+    zeroMem(addr audioBuffer[0], count)
+    mixer.sfx.readSamples(audioBuffer[0].addr, count div 2)
     for i in 0..<count:
-        stream[i] = 256 * cast[int16](s8buf[i])
+        stream[i] = 256 * cast[int16](audioBuffer[i])
 
 proc playSfxMusic*(self: var Mixer, num: int) =
     debug(DBG_SND, &"Mixer::playSfxMusic({num})")
@@ -94,7 +99,7 @@ proc stopSound*(self: var Mixer, channel: int) =
 proc stopAll*(self: var Mixer) =
     for i in 0..<4:
         self.stopSound(i)
-    self.stopSfxMusic()
+    stopSfxMusicCore()
 
 proc setChannelVolume(channel, vol: int) =
     discard volume(channel.cint, (vol * MIX_MAX_VOLUME div 63).cint)

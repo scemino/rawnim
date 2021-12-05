@@ -6,8 +6,8 @@ type Frac* = object
     inc*: uint32
     offset*: uint64
 
-proc getInt*(self: Frac): int =
-    self.offset.int shr BITS
+proc getInt*(self: Frac): uint32 =
+    (self.offset.int shr BITS).uint32
 
 proc getFrac(self: Frac) : uint32 =
     (self.offset and MASK).uint32

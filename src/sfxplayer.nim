@@ -19,6 +19,15 @@ type
         numOrder: byte
         orderTable: array[0x80, byte]
         samples: array[15, SfxInstrument]
+    SfxPattern = object
+        note_1: uint16
+        note_2: uint16
+        sampleStart: uint16
+        sampleBuffer: ptr byte
+        sampleLen: uint16
+        loopPos: uint16
+        loopLen: uint16
+        sampleVolume: uint16
     SfxChannel = object
         sampleData: ptr byte
         sampleLen: uint16
@@ -37,15 +46,6 @@ type
         rate: int
         samplesLeft: int
         channels: array[NUM_CHANNELS, SfxChannel]
-    SfxPattern = object
-        note_1: uint16
-        note_2: uint16
-        sampleStart: uint16
-        sampleBuffer: ptr byte
-        sampleLen: uint16
-        loopPos: uint16
-        loopLen: uint16
-        sampleVolume: uint16
 
 var 
     prevL = 0
@@ -112,7 +112,7 @@ proc handlePattern(self: var SfxPlayer, channel: int, data: ptr byte) =
         elif pat.sampleBuffer != nil:
             assert(pat.note_1 >= 0x37 and pat.note_1 < 0x1000)
             # convert amiga period value to hz
-            var freq = (7159092 div (pat.note_1 * 2)).uint16
+            let freq = (7159092 div (pat.note_1.int * 2)).uint16
             # debug(DBG_SND, &"SfxPlayer::handlePattern() adding sample freq = 0x{freq:X}")
             echo &"SfxPlayer::handlePattern() adding sample freq = 0x{freq:X}"
             var ch = addr self.channels[channel]
@@ -122,7 +122,7 @@ proc handlePattern(self: var SfxPlayer, channel: int, data: ptr byte) =
             ch.sampleLoopLen = pat.loopLen
             ch.volume = pat.sampleVolume
             ch.pos.offset = 0
-            ch.pos.inc = (freq.uint32 shl BITS) div self.rate.uint32
+            ch.pos.inc = ((freq.int shl BITS) div self.rate).uint32
 
 proc handleEvents(self: var SfxPlayer) =
     var order = self.sfxMod.orderTable[self.sfxMod.curOrder]
@@ -130,7 +130,7 @@ proc handleEvents(self: var SfxPlayer) =
     for ch in 0..<4:
         self.handlePattern(ch, patternData)
         patternData += 4
-    self.sfxMod.curPos += 4 * 4
+    self.sfxMod.curPos += (4 * 4)
     #debug(DBG_SND, &"SfxPlayer::handleEvents() order = 0x{order:X} curPos = 0x{self.sfxMod.curPos:X}")
     echo &"SfxPlayer::handleEvents() order = 0x{order:X} curPos = 0x{self.sfxMod.curPos:X}"
     if self.sfxMod.curPos >= 1024:
@@ -141,10 +141,10 @@ proc handleEvents(self: var SfxPlayer) =
             self.playing = false
         self.sfxMod.curOrder = order
 
-proc mixChannel(s: var int8, ch: ptr SfxChannel) =
+proc mixChannel(s: var int8, ch: var SfxChannel) =
     if ch.sampleLen != 0:
         var pos1 = cast[int](ch.pos.offset shr BITS)
-        ch.pos.offset += ch.pos.inc
+        ch.pos.offset = ch.pos.offset + ch.pos.inc.uint64
         var pos2 = pos1 + 1
         if ch.sampleLoopLen != 0:
             if pos1 == ch.sampleLoopPos.int + ch.sampleLoopLen.int - 1:
@@ -154,8 +154,8 @@ proc mixChannel(s: var int8, ch: ptr SfxChannel) =
             if pos1 == ch.sampleLen.int - 1:
                 ch.sampleLen = 0
                 return
-        var sample = cast[int16](ch.pos.interpolate(cast[int8](ch.sampleData[pos1]), cast[int8](ch.sampleData[pos2])))
-        sample = s.int16 + sample * ch.volume.int16 div 64
+        var sample = ch.pos.interpolate(cast[int8](ch.sampleData[pos1]), cast[int8](ch.sampleData[pos2])).int
+        sample = s + sample * ch.volume.int div 64
         sample = clamp(sample, -128, 127)
         s = cast[int8](sample)
 
@@ -174,11 +174,11 @@ proc mixSamples(self: var SfxPlayer, buffer: ptr int8, l: int) =
         self.samplesLeft -= count
         len -= count
         for i in 0..<count:
-            mixChannel(buf[0], addr self.channels[0])
-            mixChannel(buf[0], addr self.channels[3])
+            mixChannel(buf[0], self.channels[0])
+            mixChannel(buf[0], self.channels[3])
             buf += 1
-            mixChannel(buf[0], addr self.channels[1])
-            mixChannel(buf[0], addr self.channels[2])
+            mixChannel(buf[0], self.channels[1])
+            mixChannel(buf[0], self.channels[2])
             buf += 1
 
 proc nr(inp: ptr int8, len: int, oup: ptr int8) =
@@ -200,14 +200,14 @@ proc readSamples*(self: var SfxPlayer, buf: ptr int8, len: int) =
     if self.delay == 0:
         zeroMem(buf, len*2)
     else:
-        let bufin = cast[ptr int8](allocShared(len * 2))
+        let bufin = cast[ptr int8](alloc(len * 2))
         self.mixSamples(bufin, len)
         nr(bufin, len, buf)
-        deallocShared(bufin)
+        dealloc(bufin)
 
 proc setEventsDelay*(self: var SfxPlayer, delay: uint16) =
-    debug(DBG_SND, "SfxPlayer::setEventsDelay({delay})")
-    self.delay = cast[uint16](delay.int * 60 div 7050)
+    debug(DBG_SND, &"SfxPlayer::setEventsDelay({delay})")
+    self.delay = (delay.int * 60 div 7050).uint16
 
 proc prepareInstruments(self: var SfxPlayer, data: ptr byte) =
     zeroMem(addr self.sfxMod.samples[0], sizeof(self.sfxMod.samples))
@@ -234,14 +234,14 @@ proc loadSfxModule*(self: var SfxPlayer, resNum, delay: uint16, pos: byte) =
         self.resNum = resNum
         zeroMem(addr self.sfxMod, sizeof(SfxModule))
         self.sfxMod.curOrder = pos
-        self.sfxMod.numOrder = READ_BE_UINT16(me.bufPtr + 0x3E).byte # TODO: check why this is a byte ?
+        self.sfxMod.numOrder = cast[byte](READ_BE_UINT16(me.bufPtr + 0x3E)) # TODO: check why this is a byte ?
         debug(DBG_SND, &"SfxPlayer::loadSfxModule() curOrder = 0x{self.sfxMod.curOrder:X} numOrder = 0x{self.sfxMod.numOrder:X}")
         copyMem(addr self.sfxMod.orderTable[0], addr me.bufPtr[0x40], 0x80)
         if delay == 0:
             self.delay = READ_BE_UINT16(me.bufPtr)
         else:
             self.delay = delay
-        self.delay = cast[uint16](self.delay.int * 60 div 7050)
+        self.delay = (self.delay.int * 60 div 7050).uint16
         self.sfxMod.data = me.bufPtr + 0xC0
         debug(DBG_SND, &"SfxPlayer::loadSfxModule() eventDelay = {self.delay} ms")
         self.prepareInstruments(me.bufPtr + 2)

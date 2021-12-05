@@ -141,7 +141,7 @@ proc handlePattern(self: var Player, channel: byte, data: var ptr byte, pat: var
                     pat.loopData = nil
                     pat.loopLen = 0
                 var m = pat.sample_volume
-                var effect = (pat.note_2 and 0x0F00).byte
+                let effect = ((pat.note_2 and 0x0F00) shr 8).byte
                 echo &"pat->note_2 = {pat.note_2}"
                 echo &"effect = {effect}"
                 if effect == 5: # volume up
