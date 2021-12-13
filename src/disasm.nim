@@ -1,6 +1,8 @@
 import std/strformat
 import ptrmath
 import os
+import resource
+import datatype
 
 const 
     MAX_OPCODES = 27
@@ -304,14 +306,29 @@ proc parse(buf: ptr byte, size: int, visitOpcode: proc(a: uint16, op: byte, args
             let args = [a, b, c, d]
             visitOpcode(address, op, args)
 
+iterator resources(self: Resource): MemEntry =
+    for i in 0..<self.numMemList:
+        if self.memList[i].entryType == RT_BYTECODE:
+            yield self.memList[i]
+
 when isMainModule:
     when declared(commandLineParams):
         let params = commandLineParams()
         if params.len > 0:
             let path = params[0]
-            var buffer = readAllBytes(path)
-            parse(addr buffer[0], buffer.len, checkOpcode)
-            parse(addr buffer[0], buffer.len, printOpcode)
+            if dirExists(path):
+                echo &"directory: {path}"
+                var res = newResource(path)
+                res.readEntries()
+                for entry in res.resources():
+                    var p = newSeq[byte](entry.unpackedSize)
+                    if res.readBank(entry, addr p[0]):
+                        parse(addr p[0], p.len, checkOpcode)
+                        parse(addr p[0], p.len, printOpcode)
+            else:
+                var buffer = readAllBytes(path)
+                parse(addr buffer[0], buffer.len, checkOpcode)
+                parse(addr buffer[0], buffer.len, printOpcode)
     else:
         quit("You need to provide a path")
 

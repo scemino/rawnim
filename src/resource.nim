@@ -26,15 +26,15 @@ const
     STATUS_TOLOAD* = 2
 
 type
-    MemEntry = object
+    MemEntry* = object
         status*: byte          # 0x0
-        entryType*: byte       # 0x1, Resource::ResType
+        entryType*: byte    # 0x1, Resource::ResType
         bufPtr*: ptr byte      # 0x2
         rankNum: byte         # 0x6
-        bankNum: byte         # 0x7
+        bankNum*: byte         # 0x7
         bankPos: uint32       # 0x8
         packedSize: uint32    # 0xC
-        unpackedSize: uint32  # 0x12
+        unpackedSize*: uint32  # 0x12
     Resource* = ref ResourceObj
     ResourceObj* = object
         vid*: Video
@@ -48,11 +48,11 @@ type
         segVideoPal*, segCode*, segVideo1*, segVideo2*: ptr byte
         dataType*: DataType
         amigaMemList: AmigaMemEntries
-        numMemList: int
+        numMemList*: int
         bankPrefix: string
         demo3Joy*: DemoJoy
     ResourceRef* = ref Resource
-    ResType = enum
+    ResType* = enum
         RT_SOUND = 0,
         RT_MUSIC  = 1,
         RT_BITMAP = 2, # full screen 4bpp video buffer, size=200*320/2
@@ -181,7 +181,7 @@ proc readEntries*(self: Resource) =
         self.hasPasswordScreen = true
         self.readEntriesAmiga(self.amigaMemList)
 
-proc readBank(self: Resource, me: MemEntry, dstBuf: ptr byte): bool =
+proc readBank*(self: Resource, me: MemEntry, dstBuf: ptr byte): bool =
     result = false
     let bank = self.getBankName(me.bankNum)
     if fileExists(bank):
@@ -218,7 +218,7 @@ proc dumpEntries*(self: Resource) =
 proc invalidateRes*(self: Resource) =
     for i in 0..<self.numMemList:
         var me = addr self.memList[i]
-        if (me.entryType <= 2 or me.entryType > 6):
+        if (me.entryType <= RT_BITMAP.byte or me.entryType > RT_BANK.byte):
             me.status = STATUS_NULL
     self.scriptCurPtr = self.scriptBakPtr
     self.vid.currentPal = 0xFF
