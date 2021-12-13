@@ -25,7 +25,7 @@ Usage:
 Options:  
   --help,          -h        Shows this help and quits
   --datapath:path, -d:path   Path to data files (default '.')
-  --language=lang, -l:lang   Language (fr,us,de,es,it)
+  --language=lang, -l:lang   Language (fr,us)
   --part=num,      -p:num    Game part to start from (0-35 or 16001-16009)
   --ega            -e        Use EGA palette
   --demo3-joy      -j        Use inputs from 'demo3.joy' (DOS demo)

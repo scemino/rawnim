@@ -1,6 +1,7 @@
 # rawnim
 
 Another World/Out of This World engine reimplementation written in pure nim.
+This project is a rewrite of [rawgl](https://github.com/cyxx/rawgl) by Grégory Montoir.
 
 # Supported Versions
 
@@ -18,7 +19,7 @@ The program requires the original data files.
     Options:  
     --help,          -h        Shows this help and quits
     --datapath:path, -d:path   Path to data files (default '.')
-    --language=lang, -l:lang   Language (fr,us,de,es,it)
+    --language=lang, -l:lang   Language (fr,us)
     --part=num,      -p:num    Game part to start from (0-35 or 16001-16009)
     --ega            -e        Use EGA palette
     --demo3-joy      -j        Use inputs from 'demo3.joy' (DOS demo)
