@@ -1,7 +1,9 @@
 # rawnim
 
-Another World/Out of This World engine reimplementation written in pure nim.
+**Another World / Out of This World** engine re-implementation written in pure nim.
 This project is a rewrite of [rawgl](https://github.com/cyxx/rawgl) by Grégory Montoir.
+
+![rawnim](https://repository-images.githubusercontent.com/435237620/0501fef5-2b38-42b4-af9e-d61c0fa89ff9)
 
 # Supported Versions
 
