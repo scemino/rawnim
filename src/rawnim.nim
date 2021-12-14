@@ -40,7 +40,7 @@ proc runGame(settings: Settings) =
   if settings.demoJoy and e.res.dataType == DT_DOS:
     e.res.readDemo3Joy()
   e.setup()
-  while true:
+  while not sys.pi.quit:
     e.run()
   e.finish()
 

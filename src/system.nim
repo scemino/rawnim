@@ -98,7 +98,7 @@ proc processEvents*(self: System) =
     while pollEvent(ev):
         case ev.kind:
         of QuitEvent:
-            quit("bye")
+            self.pi.quit = true
         of WindowEvent:
             var windowEvent = cast[WindowEventPtr](addr(ev))
             if windowEvent.event == WindowEvent_Resized:
@@ -111,13 +111,13 @@ proc processEvents*(self: System) =
             self.pi.lastChar = cast[char](keyEvent.keysym.sym)
             case keyEvent.keysym.sym:
             of K_LEFT:
-                self.pi.dirMask.incl {DIR_LEFT}
+                self.pi.dirMask.incl DIR_LEFT
             of K_RIGHT:
-                self.pi.dirMask.incl {DIR_RIGHT}
+                self.pi.dirMask.incl DIR_RIGHT
             of K_UP:
-                self.pi.dirMask.incl {DIR_UP}
+                self.pi.dirMask.incl DIR_UP
             of K_DOWN:
-                self.pi.dirMask.incl {DIR_DOWN}
+                self.pi.dirMask.incl DIR_DOWN
             of K_SPACE, K_RETURN:
                 self.pi.action = true
             else:
@@ -126,15 +126,17 @@ proc processEvents*(self: System) =
             var keyEvent = cast[KeyboardEventPtr](addr(ev))
             case keyEvent.keysym.sym:
             of K_LEFT:
-                self.pi.dirMask.excl {DIR_LEFT}
+                self.pi.dirMask.excl DIR_LEFT
             of K_RIGHT:
-                self.pi.dirMask.excl {DIR_RIGHT}
+                self.pi.dirMask.excl DIR_RIGHT
             of K_UP:
-                self.pi.dirMask.excl {DIR_UP}
+                self.pi.dirMask.excl DIR_UP
             of K_DOWN:
-                self.pi.dirMask.excl {DIR_DOWN}
+                self.pi.dirMask.excl DIR_DOWN
             of K_SPACE, K_RETURN:
                 self.pi.action = false
+            of K_ESCAPE:
+                self.pi.quit = true
             of K_c:
                 self.pi.code = true
             of K_p:
@@ -204,6 +206,8 @@ proc processEvents*(self: System) =
                 let pressed = ev.cbutton.state == 1
                 case ev.cbutton.button:
                 of SDL_CONTROLLER_BUTTON_GUIDE:
+                    self.pi.quit = pressed
+                of SDL_CONTROLLER_BUTTON_LEFTSHOULDER, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
                     self.pi.code = pressed
                 of SDL_CONTROLLER_BUTTON_START:
                     self.pi.pause = pressed

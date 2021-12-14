@@ -32,3 +32,4 @@ In game hotkeys :
     Enter/Space     run/shoot
     C               enter a code to start at a specific position
     P               pause the game
+    ESC             quit the game
