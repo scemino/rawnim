@@ -131,7 +131,7 @@ proc fixUpPalette_changeScreen(self: var Script, part, screen: int) =
             pal = 8
     of 16006:
         if screen == 0x4A: # bitmap resources #144, #145
-            pal = 1
+            pal = 2
     else: 
         discard
     if pal != -1:
